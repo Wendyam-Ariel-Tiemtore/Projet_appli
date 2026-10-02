@@ -9,6 +9,8 @@ import re
 import numpy as np
 import pandas as pd
 
+from ..writing.phrases import Redac
+from ..writing.style import de, enumeration, nombre
 from . import fmt
 from .io import Dataset
 from .results import Section, Table
@@ -67,12 +69,13 @@ def apply_privacy(ds: Dataset, actions: dict[str, str], secret: bytes) -> list[s
         if action == "supprimer":
             ds.df = ds.df.drop(columns=[col])
             ds.variables.pop(col, None)
-            log.append(f"Variable « {col} » supprimée avant analyse (identifiant).")
+            log.append(f"La variable « {col} », identifiant personnel, a été supprimée avant toute analyse.")
         elif action == "pseudonymiser":
             ds.df[col] = pseudonymize(ds.df[col], secret)
             if col in ds.variables:
                 ds.variables[col].categories = []
-            log.append(f"Variable « {col} » pseudonymisée (code HMAC-SHA256).")
+            log.append(f"La variable « {col} » a été pseudonymisée, chaque valeur étant remplacée par un code "
+                       "HMAC-SHA256.")
     return log
 
 
@@ -97,34 +100,44 @@ def quality_section(ds: Dataset, used: list[str], outcome: str | None) -> Sectio
                 ext = ((x < q1 - 3 * iqr) | (x > q3 + 3 * iqr)).sum()
                 mod = ((x < q1 - 1.5 * iqr) | (x > q3 + 1.5 * iqr)).sum() - ext
                 if ext:
-                    note.append(f"{ext} valeur(s) extrême(s)")
+                    note.append(f"{ext} valeur{'s' if ext > 1 else ''} extrême{'s' if ext > 1 else ''}")
                 elif mod:
-                    note.append(f"{mod} valeur(s) atypique(s)")
+                    note.append(f"{mod} valeur{'s' if mod > 1 else ''} atypique{'s' if mod > 1 else ''}")
         elif info.kind in ("nominale", "binaire", "ordinale"):
             counts = df[col].value_counts()
             small = (counts < 5).sum()
             if small:
-                note.append(f"{small} modalité(s) d'effectif < 5")
+                note.append(f"{small} modalité{'s' if small > 1 else ''} d'effectif inférieur à 5")
         rows.append({"Variable": info.label if info.label != col else col, "Type": info.kind,
                      "Valides": fmt.integer(info.n_valid), "Manquants": fmt.pct(miss),
-                     "Remarques": "; ".join(note) or "–"})
+                     "Remarques": " ; ".join(note) or "-"})
     dup = int(df.duplicated().sum())
     sec.tables.append(Table(
         title="Qualité des variables retenues pour l'analyse",
         data=pd.DataFrame(rows),
-        note=("Valeurs atypiques selon la règle de Tukey : au-delà de 1,5 intervalle interquartile ; "
-              "extrêmes au-delà de 3. Elles sont signalées, non supprimées.")))
+        note=("Les valeurs atypiques sont repérées par la règle de Tukey : au-delà de 1,5 fois l'intervalle "
+              "interquartile, et extrêmes au-delà de trois fois. Elles sont signalées mais ne sont pas supprimées.")))
     sec.refs |= {"tukey1977", "rubin1976"}
-    txt = (f"La base analysée compte {fmt.integer(n)} observations et {len(used)} variables retenues. ")
-    txt += (f"{fmt.integer(dup)} ligne(s) strictement dupliquée(s) ont été repérées ; elles sont conservées "
-            "mais doivent être vérifiées. " if dup else "Aucune ligne dupliquée n'a été détectée. ")
-    if flagged_missing:
-        lst = ", ".join(f"{c} ({fmt.pct(m)})" for c, m in flagged_missing[:6])
-        txt += (f"Les variables suivantes présentent plus de 5 % de valeurs manquantes : {lst}. "
-                "Les analyses sont conduites sur les cas disponibles ; si l'absence de réponse n'est pas "
-                "aléatoire, les estimations peuvent être biaisées (Rubin, 1976).")
+    R = Redac(ds)
+    txt = (f"Avant toute analyse, nous avons vérifié la qualité des données. La base compte "
+           f"{nombre(n, 'observations', True)}, et {nombre(len(used), 'variables')} sont retenues pour l'étude. ")
+    if dup:
+        txt += (f"Nous avons repéré {nombre(dup, 'lignes', True)} strictement "
+                f"{'identiques' if dup > 1 else 'identique'} à une autre ; "
+                f"{'elles sont conservées' if dup > 1 else 'elle est conservée'} mais "
+                f"{'doivent' if dup > 1 else 'doit'} être vérifiée{'s' if dup > 1 else ''}. ")
     else:
-        txt += "Aucune variable retenue ne dépasse 5 % de valeurs manquantes."
+        txt += "Aucune ligne dupliquée n'a été détectée. "
+    if flagged_missing:
+        lst = enumeration([f"{R.v(c)} ({fmt.pct(m)})" for c, m in flagged_missing[:6]])
+        if len(flagged_missing) == 1:
+            txt += f"Une seule variable présente plus de 5 % de valeurs manquantes : il s'agit {de(lst)}. "
+        else:
+            txt += f"Les variables présentant plus de 5 % de valeurs manquantes sont {lst}. "
+        txt += ("Les analyses sont conduites sur les cas disponibles. Si l'absence de réponse n'est pas aléatoire, "
+                "les estimations peuvent toutefois être biaisées (Rubin, 1976).")
+    else:
+        txt += "Par ailleurs, aucune variable retenue ne dépasse 5 % de valeurs manquantes."
     sec.paragraphs.append(txt)
     sec.facts.update({"qualite.n": n, "qualite.doublons": dup, "qualite.nb_variables": len(used)})
 
@@ -147,9 +160,9 @@ def quality_section(ds: Dataset, used: list[str], outcome: str | None) -> Sectio
                     from scipy import stats
                     p = stats.chi2_contingency(ct)[1]
                     miss_rows.append((col, p))
-        bad = [c for c, p in miss_rows if p < 0.05]
+        bad = [R.v(c) for c, p in miss_rows if p < 0.05]
         if bad:
             sec.warnings.append(
-                "La présence de valeurs manquantes est associée à la variable dépendante pour : "
-                + ", ".join(bad) + ". Le mécanisme n'est donc probablement pas complètement aléatoire (MCAR).")
+                f"La présence de valeurs manquantes pour {enumeration(bad)} est associée à la variable dépendante. "
+                "Le mécanisme de non-réponse n'est donc probablement pas complètement aléatoire (MCAR).")
     return sec

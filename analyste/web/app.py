@@ -29,6 +29,7 @@ from ..security.web import OriginCheck, RateLimiter, SecurityHeaders, UploadErro
 from ..stats.audit import detect_identifiers
 from ..stats.io import KINDS, DataReadError
 from ..writing.composer import DOC_TYPES, RequestSpec
+from ..writing.style import avec_article
 
 HERE = Path(__file__).parent
 DOCS = HERE.parent.parent / "docs"
@@ -310,7 +311,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                          "categories": info.categories[:40], "role": role,
                          "reference": cfg.references.get(name, ""),
                          "bloc": _bloc_of(name, cfg), "echelle": _scale_of(name, cfg),
-                         "identifier": ids.get(name), "privacy": cfg.privacy_actions.get(name, "conserver")})
+                         "identifier": ids.get(name), "privacy": cfg.privacy_actions.get(name, "conserver"),
+                         "texte": cfg.textes.get(name, ""),
+                         "prose": avec_article(cfg.labels.get(name, info.label))})
         return render(request, "variables.html", c, projet={"id": pid, "nom": store.name(p), "statut": p.status},
                       rows=rows, n=len(ds.df), cfg=cfg, etape=2)
 
@@ -323,6 +326,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         old = AnalysisConfig.from_dict(store.dec(p, p.config_enc, {}))
         cfg = AnalysisConfig(literature=old.literature, keywords=old.keywords, year_from=old.year_from, llm=old.llm,
                              consent_external=old.consent_external, factorial=old.factorial)
+        for key in ("unite", "evenement", "indicateur"):
+            val = " ".join(str(form.get(f"red_{key}", "")).split())[:200]
+            if val:
+                cfg.redaction[key] = val
         errors = []
         blocks: dict[int, list[str]] = {}
         scales: dict[str, list[str]] = {}
@@ -334,6 +341,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 cfg.kinds[name] = kind
             if label.strip() and label != name:
                 cfg.labels[name] = label.strip()
+            texte = " ".join(str(form.get(f"texte__{name}", "")).split())[:150]
+            if texte:
+                cfg.textes[name] = texte
             ref = str(form.get(f"ref__{name}", ""))
             if ref and ref in info.categories:
                 cfg.references[name] = ref
@@ -419,7 +429,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             problematique=str(form.get("problematique", "")).strip()[:1500],
             objectives=lines("objectives"), hypotheses=lines("hypotheses"),
             keywords=[k.strip()[:80] for k in str(form.get("keywords", "")).split(",") if k.strip()][:10],
-            english_abstract=form.get("english_abstract") == "on")
+            english_abstract=form.get("english_abstract") == "on",
+            style_sample=str(form.get("style_sample", "")).strip()[:2500])
         cfg = AnalysisConfig.from_dict(store.dec(p, p.config_enc, {}))
         cfg.literature = form.get("literature") == "on" and settings.allow_literature
         cfg.keywords = spec.keywords

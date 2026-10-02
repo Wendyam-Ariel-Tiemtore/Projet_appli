@@ -1,4 +1,4 @@
-// Analyste académique — comportements minimes de l'interface (aucun appel réseau externe).
+// Analyste académique : comportements minimes de l'interface (aucun appel réseau externe).
 (function () {
   "use strict";
 

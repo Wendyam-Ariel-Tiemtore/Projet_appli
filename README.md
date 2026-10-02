@@ -31,7 +31,7 @@ Les règles appliquées sont décrites dans le [guide méthodologique](docs/METH
 
 ## Installation
 
-### Option 1 — Docker (recommandée)
+### Option 1 : Docker (recommandée)
 
 Prérequis : [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows, macOS) ou Docker Engine (Linux).
 
@@ -59,7 +59,7 @@ docker compose --profile ia-locale up -d
 docker compose exec ollama ollama pull qwen2.5:14b-instruct
 ```
 
-### Option 2 — Sans Docker
+### Option 2 : sans Docker
 
 Prérequis : Python 3.11 ou plus récent.
 
@@ -166,4 +166,4 @@ L'application automatise des calculs, une mise en forme et une partie de la réd
 
 ## Licence
 
-[MIT](LICENSE) — © 2026 Wendyam Ariel Tiemtoré.
+[MIT](LICENSE), © 2026 Wendyam Ariel Tiemtoré.

@@ -10,13 +10,13 @@ NBSP = " "  # espace fine insécable, séparateur de milliers
 def num(x, digits: int = 2) -> str:
     """Nombre décimal à la française : 1 234,57."""
     if x is None:
-        return "–"
+        return "-"
     try:
         xf = float(x)
     except (TypeError, ValueError):
         return str(x)
     if math.isnan(xf):
-        return "–"
+        return "-"
     if math.isinf(xf):
         return "∞" if xf > 0 else "-∞"
     s = f"{xf:,.{digits}f}"
@@ -28,7 +28,7 @@ def num(x, digits: int = 2) -> str:
 
 def integer(x) -> str:
     if x is None:
-        return "–"
+        return "-"
     try:
         return num(int(round(float(x))), 0)
     except (TypeError, ValueError):
@@ -38,20 +38,20 @@ def integer(x) -> str:
 def pct(x, digits: int = 1) -> str:
     """Pourcentage à partir d'une proportion (0,253 -> 25,3 %)."""
     if x is None or (isinstance(x, float) and math.isnan(x)):
-        return "–"
+        return "-"
     return f"{num(100 * float(x), digits)}{NBSP}%"
 
 
 def pval(p) -> str:
     """Probabilité critique : « < 0,001 » sous le seuil d'affichage."""
     if p is None:
-        return "–"
+        return "-"
     try:
         pf = float(p)
     except (TypeError, ValueError):
         return str(p)
     if math.isnan(pf):
-        return "–"
+        return "-"
     if pf < 0.001:
         return "< 0,001"
     return num(pf, 3)

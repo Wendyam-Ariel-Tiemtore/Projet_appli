@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block titre %}Variables — {{ projet.nom }}{% endblock %}
+{% block titre %}Variables : {{ projet.nom }}{% endblock %}
 {% block contenu %}
 {% include "_parcours.html" %}
 <h1>Vérifier les variables</h1>
@@ -20,7 +20,7 @@
   <tr class="{% if r.identifier %}ligne-identifiant{% endif %}">
     <td>
       <span class="code">{{ r.name }}</span>
-      <div class="modalites">{{ r.n_valid }} valides{% if r.n_missing %}, {{ r.n_missing }} manquantes{% endif %}{% if r.reason %} — {{ r.reason }}{% endif %}</div>
+      <div class="modalites">{{ r.n_valid }} valides{% if r.n_missing %}, {{ r.n_missing }} manquantes{% endif %}{% if r.reason %} ({{ r.reason }}){% endif %}</div>
       {% if r.categories and r.kind in ["binaire", "nominale", "ordinale"] %}<div class="modalites">Modalités : {{ r.categories[:8] | join(", ") }}{% if r.categories|length > 8 %}…{% endif %}</div>{% endif %}
       {% if r.identifier %}
         <label class="sr-only" for="priv__{{ r.name }}">Confidentialité de {{ r.name }}</label>
@@ -30,7 +30,10 @@
       {% endif %}
     </td>
     <td><label class="sr-only" for="label__{{ r.name }}">Intitulé</label>
-      <input id="label__{{ r.name }}" name="label__{{ r.name }}" type="text" maxlength="120" value="{{ r.label }}"></td>
+      <input id="label__{{ r.name }}" name="label__{{ r.name }}" type="text" maxlength="120" value="{{ r.label }}">
+      <label class="sr-only" for="texte__{{ r.name }}">Formulation dans le texte</label>
+      <input id="texte__{{ r.name }}" name="texte__{{ r.name }}" type="text" maxlength="150" value="{{ r.texte }}"
+             class="espace-haut" placeholder="{{ r.prose }}" title="Formulation dans les phrases du document (par défaut : {{ r.prose }})"></td>
     <td><label class="sr-only" for="kind__{{ r.name }}">Type</label>
       <select id="kind__{{ r.name }}" name="kind__{{ r.name }}">
         {% for k in KINDS %}<option value="{{ k }}" {% if r.kind == k %}selected{% endif %}>{{ k }}</option>{% endfor %}
@@ -44,17 +47,34 @@
       <select id="ref__{{ r.name }}" name="ref__{{ r.name }}">
         <option value="">Automatique</option>
         {% for c in r.categories %}<option value="{{ c }}" {% if r.reference == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
-      </select>{% else %}<span class="modalites">–</span>{% endif %}</td>
+      </select>{% else %}<span class="modalites">-</span>{% endif %}</td>
     <td><label class="sr-only" for="bloc__{{ r.name }}">Bloc</label>
       <select id="bloc__{{ r.name }}" name="bloc__{{ r.name }}">
-        <option value="">–</option>{% for b in range(1, 6) %}<option value="{{ b }}" {% if r.bloc == b|string %}selected{% endif %}>{{ b }}</option>{% endfor %}
+        <option value="">-</option>{% for b in range(1, 6) %}<option value="{{ b }}" {% if r.bloc == b|string %}selected{% endif %}>{{ b }}</option>{% endfor %}
       </select></td>
     <td><label class="sr-only" for="echelle__{{ r.name }}">Échelle</label>
-      <input id="echelle__{{ r.name }}" name="echelle__{{ r.name }}" type="text" maxlength="60" value="{{ r.echelle }}" placeholder="–"></td>
+      <input id="echelle__{{ r.name }}" name="echelle__{{ r.name }}" type="text" maxlength="60" value="{{ r.echelle }}" placeholder="-"></td>
   </tr>
   {% endfor %}
   </tbody>
 </table>
+</div>
+
+<h2>Rédaction des résultats</h2>
+<p class="aide">Ces formulations rendent le texte naturel, comme dans un mémoire. Exemple : « les femmes dont le niveau d'instruction est « Primaire » ont 1,76 fois plus de chances d'utiliser une méthode contraceptive moderne que celles dont il est « Aucun » ». La seconde ligne, en gris sous chaque intitulé, indique comment la variable est nommée dans les phrases : remplacez-la si besoin (« le niveau d'instruction de la femme »).</p>
+<div class="grille-2">
+  <div>
+    <label for="red_unite">Unité d'observation, au pluriel <span class="aide">Exemples : femmes, ménages, élèves, coopératives. Par défaut : individus.</span></label>
+    <input id="red_unite" name="red_unite" type="text" maxlength="60" value="{{ cfg.redaction.get('unite', '') }}" placeholder="individus">
+  </div>
+  <div>
+    <label for="red_evenement">Événement étudié, à l'infinitif <span class="aide">Ce que représente la modalité d'intérêt. Exemple : « utiliser une méthode contraceptive moderne ».</span></label>
+    <input id="red_evenement" name="red_evenement" type="text" maxlength="200" value="{{ cfg.redaction.get('evenement', '') }}">
+  </div>
+  <div>
+    <label for="red_indicateur">Nom de l'indicateur <span class="aide">Exemple : « la prévalence contraceptive moderne », « le taux de scolarisation ».</span></label>
+    <input id="red_indicateur" name="red_indicateur" type="text" maxlength="200" value="{{ cfg.redaction.get('indicateur', '') }}">
+  </div>
 </div>
 
 <h2>Options de modélisation</h2>

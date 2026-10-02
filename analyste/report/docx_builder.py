@@ -15,6 +15,7 @@ from docx.shared import Cm, Pt, RGBColor
 
 from ..stats.results import Figure, Table
 from ..writing.composer import DOC_TYPES, Document, Item
+from ..writing.style import titre
 
 FONT = "Times New Roman"
 
@@ -87,7 +88,8 @@ def _update_fields_on_open(doc) -> None:
 
 def _rich(paragraph, text: str, size: float | None = None, italic: bool = False) -> None:
     """Texte avec *italique* minimal (références APA)."""
-    parts = re.split(r"(\*[^*]+\*)", text)
+    # italique uniquement pour *Titre* collé aux astérisques : les notes « *** p < 0,01 » restent intactes
+    parts = re.split(r"(\*(?=[^\s*])[^*]+?(?<=[^\s*])\*)", text)
     for part in parts:
         if not part:
             continue
@@ -108,7 +110,11 @@ def _caption(doc, label: str, title: str):
     p.paragraph_format.space_before = Pt(10)
     r = p.add_run(f"{label} ")
     r.bold = True
-    _field(p, f"SEQ {label} \\* ARABIC", "1")
+    compteurs = getattr(doc, "_compteurs", None)
+    if compteurs is None:
+        compteurs = doc._compteurs = {}
+    compteurs[label] = compteurs.get(label, 0) + 1
+    _field(p, f"SEQ {label} \\* ARABIC", str(compteurs[label]))
     r2 = p.add_run(f" : {title}")
     r2.bold = True
     return p
@@ -229,8 +235,29 @@ def add_figure(doc, f: Figure) -> None:
     _rich(p, f.source, size=9, italic=True)
 
 
-def _numbering_text(counters: list[int], level: int, text: str, numbered: bool) -> str:
+CHAPITRE = re.compile(r"^Chapitre (\d+)\b")
+PARTIES = {"Première": 1, "Deuxième": 2, "Troisième": 3, "Quatrième": 4, "Cinquième": 5, "Sixième": 6}
+
+
+def _numbering_text(counters: list[int], level: int, text: str, numbered: bool, chapitres: bool = False) -> str:
+    """Numérotation décimale des titres. Pour un mémoire ou un rapport de stage, les chapitres (ou parties) portent
+    leur propre numéro (« Chapitre 2 : Méthodologie », sections 2.1, 2.2…) ; l'introduction générale, la discussion
+    et la conclusion ne sont pas numérotées."""
     if not numbered:
+        return text
+    if chapitres and level == 1:
+        m = CHAPITRE.match(text)
+        first = text.split(" ")[0]
+        if m:
+            counters[0] = int(m.group(1))
+        elif first in PARTIES and " partie" in text:
+            counters[0] = PARTIES[first]
+        else:
+            counters[0] = -1
+        for k in range(1, len(counters)):
+            counters[k] = 0
+        return text
+    if chapitres and counters[0] == -1:
         return text
     counters[level - 1] += 1
     for k in range(level, len(counters)):
@@ -270,7 +297,7 @@ def build_docx(document: Document, out: Path) -> Path:
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(18)
-    r = p.add_run(spec.title)
+    r = p.add_run(titre(spec.title))
     r.font.size, r.bold = Pt(20), True
     r.font.color.rgb = RGBColor(0x1F, 0x2A, 0x44)
     for _ in range(4):
@@ -317,7 +344,7 @@ def build_docx(document: Document, out: Path) -> Path:
     # --- Corps ---
     counters = [0, 0, 0, 0]
     numbered = spec.doc_type != "note_synthese"
-    _render(doc, document.items, counters, numbered)
+    _render(doc, document.items, counters, numbered, chapitres=spec.doc_type in ("memoire", "rapport_stage"))
 
     # --- Références ---
     doc.add_heading("Références bibliographiques", level=1)
@@ -343,10 +370,10 @@ def _para(doc, text: str) -> None:
     _rich(p, text)
 
 
-def _render(doc, items: list[Item], counters: list[int], numbered: bool) -> None:
+def _render(doc, items: list[Item], counters: list[int], numbered: bool, chapitres: bool = False) -> None:
     for it in items:
         if it.kind == "heading":
-            doc.add_heading(_numbering_text(counters, it.level, it.text, numbered), level=min(it.level, 4))
+            doc.add_heading(_numbering_text(counters, it.level, it.text, numbered, chapitres), level=min(it.level, 4))
         elif it.kind == "para":
             if it.text.strip().startswith("{") and it.text.strip().endswith("}"):
                 p = doc.add_paragraph()

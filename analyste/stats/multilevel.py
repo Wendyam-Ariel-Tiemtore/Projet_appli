@@ -18,9 +18,12 @@ import statsmodels.api as sm
 from scipy import optimize, stats
 from scipy.special import expit, logsumexp
 
+from ..writing.phrases import Redac, accord, elision, est, pcrit
+from ..writing.style import a, de, enumeration, genre, guillemets, nombre, sans_article
 from . import figures, fmt
 from .design import Design, build_design
 from .io import Dataset
+from .models import effect_paragraphs
 from .results import Figure, Section, Table
 
 PI2_3 = np.pi ** 2 / 3
@@ -253,12 +256,13 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
     dsg = build_design(ds, outcome, lvl1 + lvl2, references, event_level, extra_cols=[cluster])
     # Centrage des variables quantitatives sur la moyenne générale : la constante et la variance de
     # l'ordonnée à l'origine se rapportent alors à un individu « moyen » (Snijders et Bosker, 2012).
-    centred = []
+    centred, centred_vars = [], []
     for t in dsg.terms:
         if not t.levels:
             c = t.columns[0]
             dsg.X[c] = dsg.X[c] - dsg.X[c].mean()
             centred.append(t.label)
+            centred_vars.append(t.variable)
     groups_raw = ds.df.loc[dsg.index, cluster]
     gcodes, guniq = pd.factorize(groups_raw)
     J = len(guniq)
@@ -267,9 +271,9 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
                       "mn.taille_min": int(sizes.min()), "mn.taille_max": int(sizes.max())})
     if J < 10 or sizes.mean() < 5:
         sec.warnings.append(
-            f"Avec {J} contextes et {fmt.num(sizes.mean(), 1)} individus par contexte en moyenne, les variances "
-            "contextuelles sont estimées avec une faible précision (repères : au moins 10 contextes, idéalement "
-            "30 ou plus, et 5 individus par contexte).")
+            f"Avec {nombre(J, 'contextes')} et {fmt.num(sizes.mean(), 1)} individus par contexte en moyenne, les "
+            "variances contextuelles sont estimées avec une faible précision. Les repères usuels sont d'au moins dix "
+            "(10) contextes, idéalement trente (30) ou plus, et de cinq (05) individus par contexte.")
     if J < 3:
         return sec
 
@@ -327,18 +331,21 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
     rows.append(dict({"Caractéristique": "Variance contextuelle (σ²ᵤ)"},
                      **{nm: f"{fmt.num(_s2u(f), 3)}{fmt.stars(f.lr_var[1])}" for nm, _, f in fits}))
     if slope_fit is not None:
-        rows.append(dict({"Caractéristique": f"Variance de la pente de « {ds.variables[random_slope].label} »"},
+        rows.append(dict({"Caractéristique": f"Variance de la pente : {ds.variables[random_slope].label}"},
                          **{nm: (fmt.num(f.slope_var, 5) if nm == "M3" else "") for nm, _, f in fits}))
     rows.append(dict({"Caractéristique": "Log-vraisemblance"}, **{nm: fmt.num(f.llf, 1) for nm, _, f in fits}))
     rows.append(dict({"Caractéristique": "AIC"}, **{nm: fmt.num(f.aic, 1) for nm, _, f in fits}))
-    what = f"« {yinfo.label} : {dsg.event_level} »" if binary else f"« {yinfo.label} »"
+    R = Redac(ds, outcome, dsg.event_level)
+    ctx_txt = R.v(cluster)
     sec.tables.append(Table(
-        title=f"Modèles multi-niveaux de {what} : effets fixes et variance contextuelle",
+        title=f"Facteurs individuels et contextuels associés {a(R.y)} : modèles multi-niveaux"
+              + (f" (modalité modélisée : {guillemets(dsg.event_level)})" if binary else ""),
         data=pd.DataFrame(rows),
-        note=(("OR : rapports de cotes ; " if binary else "β : coefficients ; ")
-              + f"{fmt.integer(dsg.n_used)} individus répartis dans {J} contextes (« {ds.variables[cluster].label} »). "
-              "Effets fixes testés par le test de Wald ; variance contextuelle testée par le rapport de vraisemblance "
-              "contre le modèle sans effet aléatoire (mélange 50:50 de khi-deux). " + fmt.STARS_NOTE)))
+        note=(("OR : rapports de cotes. " if binary else "β : coefficients. ")
+              + f"Le modèle porte sur {fmt.integer(dsg.n_used)} individus répartis dans {fmt.integer(J)} contextes, "
+              f"définis par {ctx_txt}. Les effets fixes sont testés par le test de Wald, et la variance contextuelle "
+              "par le rapport de vraisemblance contre le modèle sans effet aléatoire (mélange à parts égales de "
+              "lois du khi-deux). " + fmt.STARS_NOTE)))
 
     # --- Décomposition de la variance ---
     base = _s2u(fits[0][2])
@@ -352,7 +359,7 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
         change = (base - s2u) / base * 100 if base > 0 else np.nan
         row = {"Indice": nm, "Variance individuelle": fmt.num(lvl1_var, 3), "Variance contextuelle": fmt.num(s2u, 3),
                "Variance totale": fmt.num(s2u + lvl1_var, 3),
-               "Variation de la variance contextuelle (%)": "–" if nm == "M0" else fmt.num(change, 1),
+               "Variation de la variance contextuelle (%)": "-" if nm == "M0" else fmt.num(change, 1),
                "VPC (%)": fmt.num(100 * vpc, 1)}
         if binary:
             row["Rapport de cotes médian"] = fmt.num(f.mor)
@@ -369,10 +376,11 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
     sec.tables.append(Table(
         title="Décomposition de la variance et part attribuable aux contextes",
         data=pd.DataFrame(vrows),
-        note=("VPC : coefficient de partition de la variance, part de la variance totale située entre contextes. "
-              + ("En logistique, la variance individuelle est fixée à π²/3 ≈ 3,29 (approche de la variable latente) ; "
-                 "le rapport de cotes médian (MOR) exprime l'hétérogénéité contextuelle sur l'échelle des OR "
-                 "(Merlo et al., 2006)." if binary else
+        note=("VPC : coefficient de partition de la variance, c'est-à-dire la part de la variance totale située "
+              "entre contextes. "
+              + ("En logistique, la variance individuelle est fixée à π²/3, soit environ 3,29 (approche de la variable "
+                 "latente). Le rapport de cotes médian (MOR) exprime l'hétérogénéité contextuelle sur l'échelle des "
+                 "rapports de cotes (Merlo et al., 2006)." if binary else
                  "R² marginal : part expliquée par les effets fixes ; conditionnel : par les effets fixes et "
                  "aléatoires (Nakagawa et Schielzeth, 2013)."))))
     if binary:
@@ -380,103 +388,131 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
     else:
         sec.refs |= {"nakagawa2013", "seabold2010"}
 
-    # --- Texte (démarche de Soura) ---
+    # --- Texte (démarche par étapes : modèle vide, composition, contexte) ---
     f0 = fits[0][2]
     lr0, p0 = f0.lr_var
     s0 = _s2u(f0)
     vpc0 = s0 / (s0 + (PI2_3 if binary else f0.sigma2_e))
     sec.paragraphs.append(
-        f"Le modèle vide (M0) indique que « {yinfo.label} » "
-        + ("varie significativement" if p0 < 0.05 else "ne varie pas significativement")
-        + f" d'un contexte à l'autre : la variance contextuelle s'établit à {fmt.num(s0, 3)} (rapport de "
-          f"vraisemblance = {fmt.num(lr0)}, {fmt.p_phrase(p0)}). Le coefficient de partition de la variance montre "
-          f"que {fmt.num(100 * vpc0, 1)} % de la variabilité du phénomène se situe entre les contextes, et "
-          f"{fmt.num(100 - 100 * vpc0, 1)} % entre les individus d'un même contexte."
-        + (f" Le rapport de cotes médian vaut {fmt.num(f0.mor)} : en comparant deux personnes de même profil tirées "
-           f"au hasard dans deux contextes différents, celle du contexte le plus favorable a, en médiane, une cote "
-           f"{fmt.num(f0.mor)} fois plus élevée." if binary else ""))
+        f"Les {R.unite} de l'échantillon étant regroupés dans {nombre(J, 'contextes')}, définis par {ctx_txt}, nous "
+        "avons estimé une série de modèles multi-niveaux selon une démarche par étapes. Le modèle vide (M0) mesure "
+        "d'abord la variabilité entre contextes ; les caractéristiques individuelles (M1) puis contextuelles (M2) sont "
+        "ensuite introduites, en suivant l'évolution de la variance contextuelle.".replace(
+            "regroupés", "regroupées" if R.fem else "regroupés"))
+    txt = (f"Le modèle vide montre que {R.y} "
+           + ("varie significativement" if p0 < 0.05 else "ne varie pas significativement")
+           + f" d'un contexte à l'autre. La variance contextuelle s'établit en effet à {fmt.num(s0, 3)}, et le test du "
+             f"rapport de vraisemblance donne une statistique de {fmt.num(lr0)} avec {pcrit(p0)}. Le coefficient de "
+             f"partition de la variance indique que {fmt.num(100 * vpc0, 1)} % de la variabilité du phénomène se "
+             f"situe entre les contextes, et {fmt.num(100 - 100 * vpc0, 1)} % entre les {R.unite} d'un même contexte.")
+    if binary:
+        txt += (f" Par ailleurs, le rapport de cotes médian vaut {fmt.num(f0.mor)} : si l'on compare deux "
+                f"{R.unite} de même profil tirés au hasard dans deux contextes différents, celui du contexte le plus "
+                f"favorable a, en médiane, des chances {fmt.num(f0.mor)} fois plus élevées "
+                f"{elision('de', R.evenement())}.")
+        if R.fem:
+            txt = txt.replace("tirés au hasard", "tirées au hasard").replace("celui du contexte", "celle du contexte")
+    sec.paragraphs.append(txt)
+    sec.key_points.append(
+        f"Le modèle vide montre que {fmt.num(100 * vpc0, 1)} % de la variabilité {de(R.y)} se situe entre les "
+        "contextes.")
     if p0 >= 0.05:
         sec.paragraphs.append("La variance contextuelle n'étant pas significative, le recours à un modèle "
-                              "multi-niveaux apporte peu par rapport à un modèle à un seul niveau ; les résultats "
-                              "suivants sont présentés à titre de vérification.")
+                              "multi-niveaux apporte peu par rapport à un modèle à un seul niveau. Les résultats "
+                              "suivants sont donc présentés à titre de vérification.")
     if len(fits) > 1:
         f1 = fits[1][2]
         s1 = _s2u(f1)
         ch1 = (s0 - s1) / s0 * 100 if s0 > 0 else np.nan
-        sec.paragraphs.append(
-            "L'introduction des caractéristiques individuelles (M1) "
-            + (f"réduit la variance contextuelle de {fmt.num(ch1, 1)} %" if ch1 >= 0 else
-               f"augmente la variance contextuelle de {fmt.num(-ch1, 1)} %")
-            + f", qui passe de {fmt.num(s0, 3)} à {fmt.num(s1, 3)}. "
-            + ("Cette part des différences entre contextes tient donc à des effets de composition : les contextes "
-               "diffèrent d'abord par les caractéristiques des individus qui y vivent. " if ch1 > 0 else "")
-            + ("La variance contextuelle reste significative " if f1.lr_var[1] < 0.05 else
-               "La variance contextuelle n'est plus significative ")
-            + f"({fmt.p_phrase(f1.lr_var[1])})"
-            + (", ce qui signale l'existence d'autres facteurs, contextuels ou non observés, de différenciation entre "
-               "contextes." if f1.lr_var[1] < 0.05 else "."))
+        txt = ("L'introduction des caractéristiques individuelles (M1) "
+               + (f"réduit la variance contextuelle de {fmt.num(ch1, 1)} %" if ch1 >= 0 else
+                  f"augmente la variance contextuelle de {fmt.num(-ch1, 1)} %")
+               + f", qui passe de {fmt.num(s0, 3)} à {fmt.num(s1, 3)}.")
+        if ch1 > 0:
+            txt += (" Cette part des différences entre contextes tient donc à des effets de composition : les contextes "
+                    f"diffèrent d'abord par les caractéristiques des {R.unite} qui y vivent.")
+        if f1.lr_var[1] < 0.05:
+            txt += (f" Néanmoins, la variance contextuelle reste significative, avec {pcrit(f1.lr_var[1])}, ce qui "
+                    "signale l'existence d'autres facteurs de différenciation entre contextes, observés ou non.")
+        else:
+            txt += f" La variance contextuelle n'est alors plus significative, avec {pcrit(f1.lr_var[1])}."
+        sec.paragraphs.append(txt)
         if binary and ch1 < 0:
             sec.paragraphs.append(
-                "En régression logistique, l'ajout de variables individuelles peut augmenter la variance contextuelle "
-                "par simple effet d'échelle de la variable latente (Snijders et Bosker, 2012) ; cette hausse ne "
-                "traduit pas nécessairement un accroissement des écarts entre contextes.")
+                "Il convient de préciser qu'en régression logistique, l'ajout de variables individuelles peut augmenter "
+                "la variance contextuelle par simple effet d'échelle de la variable latente (Snijders et Bosker, "
+                "2012). Cette hausse ne traduit donc pas nécessairement un accroissement des écarts entre contextes.")
     if cols2 and len(fits) > 2:
         f1, f2 = fits[1][2], fits[2][2]
         s1, s2 = _s2u(f1), _s2u(f2)
         ch2 = (s1 - s2) / s1 * 100 if s1 > 0 else np.nan
         tot = (s0 - s2) / s0 * 100 if s0 > 0 else np.nan
         sec.paragraphs.append(
-            f"Les variables contextuelles (M2) expliquent {fmt.num(ch2, 1)} % de la variance contextuelle qui "
-            f"subsistait après contrôle des effets de composition ; au total, {fmt.num(tot, 1)} % de la variance "
-            f"contextuelle initiale est expliquée. La variance résiduelle de {fmt.num(s2, 3)} "
-            + ("demeure significative : d'autres facteurs contextuels non observés contribuent aux différences entre "
-               "contextes." if f2.lr_var[1] < 0.05 else "n'est plus significative."))
+            f"Les variables contextuelles (M2) expliquent quant à elles {fmt.num(ch2, 1)} % de la variance contextuelle "
+            f"qui subsistait après contrôle des effets de composition. Au total, {fmt.num(tot, 1)} % de la variance "
+            f"contextuelle initiale est expliquée. La variance résiduelle, qui s'établit à {fmt.num(s2, 3)}, "
+            + ("demeure significative : d'autres facteurs contextuels non observés contribuent donc aux différences "
+               "entre contextes." if f2.lr_var[1] < 0.05 else "n'est plus significative."))
+        sec.key_points.append(
+            f"Les effets de composition et de contexte expliquent ensemble {fmt.num(tot, 1)} % de la variance "
+            "contextuelle initiale.")
     final_name, final_cols, final = fits[2] if len(fits) > 2 and fits[2][0] == "M2" else fits[-1] \
         if fits[-1][0] != "M3" else fits[-2]
     tab = final.wald()
+    kind = "logistique" if binary else "lineaire"
+    t1 = [t for t in dsg.terms if any(c in cols1 for c in t.columns)]
+    t2 = [t for t in dsg.terms if any(c in cols2 for c in t.columns)]
+    nom = "complet" if final_name == "M2" else "final"
+    ouv1 = [f"Dans le modèle {nom} ({final_name}), au niveau individuel et toutes choses égales par ailleurs, ",
+            "De même, ", "Par ailleurs, ", "En ce qui concerne {x}, ", "Quant {a}, ", "En outre, "]
+    paras1, cles1, ns1 = effect_paragraphs(t1, tab, kind, R, binary, ouv1, conclure_ns=False)
+    sec.paragraphs.extend(paras1)
+    sec.key_points.extend(cles1[:2])
+    if t2:
+        ouv2 = ["Au niveau contextuel, toutes choses égales par ailleurs, ", "De même, ", "Par ailleurs, "]
+        paras2, cles2, ns2 = effect_paragraphs(t2, tab, kind, R, binary, ouv2, conclure_ns=False)
+        sec.paragraphs.extend(paras2)
+        sec.key_points.extend(cles2[:2])
+        if not paras2:
+            sec.paragraphs.append(f"Au niveau contextuel, aucune des variables introduites ({enumeration(ns2)}) "
+                                  f"n'est associée de manière significative {a(R.y)} au seuil de 5 %, toutes choses "
+                                  "égales par ailleurs.")
+            ns2 = []
+    else:
+        ns2 = []
+    ns = ns1 + ns2
+    if ns:
+        if len(ns) == 1:
+            sec.paragraphs.append(f"En revanche, {ns[0]} n'{est(ns[0])} pas {accord('associé', ns[0])} de manière "
+                                  f"significative {a(R.y)} dans ce modèle.")
+        else:
+            masc = any(genre(sans_article(v)) == "m" for v in ns)
+            sec.paragraphs.append(f"En revanche, ni {', ni '.join(ns)} ne sont {'associés' if masc else 'associées'} "
+                                  f"de manière significative {a(R.y)} dans ce modèle.")
     for t in dsg.terms:
-        for i, c in enumerate(t.columns):
+        for c in t.columns:
             if c not in tab.index or tab.loc[c, "p"] >= 0.05:
                 continue
             r = tab.loc[c]
-            ctx = "contextuelle" if c in cols2 else "individuelle"
-            who = (f"la modalité « {t.levels[i]} » de « {t.label} » (par rapport à « {t.reference} »)" if t.levels
-                   else f"chaque unité supplémentaire de « {t.label} »")
-            if binary:
-                sens = "multiplie" if r["est"] >= 1 else "divise"
-                fac = r["est"] if r["est"] >= 1 else 1 / r["est"]
-                sec.paragraphs.append(
-                    f"Dans le modèle {final_name}, toutes choses égales par ailleurs, {who} — caractéristique {ctx} — "
-                    f"{sens} la cote de {what} par {fmt.num(fac)} (OR = {fmt.num(r['est'])} ; IC à 95 % "
-                    f"{fmt.ci(r['lo_e'], r['hi_e'])} ; {fmt.p_phrase(r['p'])}).")
-            else:
-                sec.paragraphs.append(
-                    f"Dans le modèle {final_name}, toutes choses égales par ailleurs, {who} — caractéristique {ctx} — "
-                    f"est associée à une variation moyenne de {fmt.num(r['est'], 3)} de {what} (IC à 95 % "
-                    f"{fmt.ci(r['lo_e'], r['hi_e'], 3)} ; {fmt.p_phrase(r['p'])}).")
             sec.facts[f"mn.{final_name}.{c}.est"] = r["est"]
             sec.facts[f"mn.{final_name}.{c}.ic_bas"] = r["lo_e"]
             sec.facts[f"mn.{final_name}.{c}.ic_haut"] = r["hi_e"]
             sec.facts[f"mn.{final_name}.{c}.p"] = r["p"]
             if binary:
                 sec.facts[f"mn.{final_name}.{c}.facteur"] = r["est"] if r["est"] >= 1 else 1 / r["est"]
+                sec.facts[f"mn.{final_name}.{c}.pct_moins"] = 100 * (1 - r["est"])
     if slope_fit is not None:
         lr = 2 * (slope_fit.llf - fits[-2][2].llf)
         p = 0.5 * stats.chi2.sf(lr, 1) + 0.5 * stats.chi2.sf(lr, 2)
         sec.paragraphs.append(
-            f"L'introduction d'une pente aléatoire pour « {ds.variables[random_slope].label} » (M3) "
+            f"L'introduction d'une pente aléatoire pour {R.v(random_slope)} (M3) "
             + ("améliore significativement" if p < 0.05 else "n'améliore pas significativement")
-            + f" l'ajustement (rapport de vraisemblance = {fmt.num(lr)}, {fmt.p_phrase(p)}) : l'association de cette "
-              "variable avec la variable dépendante "
-            + ("varie d'un contexte à l'autre." if p < 0.05 else "peut être considérée comme identique dans tous les "
-                                                                  "contextes."))
+            + f" l'ajustement, le rapport de vraisemblance valant {fmt.num(lr)} avec {pcrit(p)}. L'association de "
+              f"cette variable avec {R.y} "
+            + ("varie donc d'un contexte à l'autre." if p < 0.05 else "peut donc être considérée comme identique dans "
+                                                                       "tous les contextes."))
         sec.facts.update({"mn.M3.lr_pente": lr, "mn.M3.p_pente": p, "mn.M3.var_pente": slope_fit.slope_var,
                           "mn.M3.cov_pente": slope_fit.slope_cov})
-    sec.paragraphs.append(
-        "Ces résultats doivent être lus en gardant à l'esprit deux écueils : l'inférence écologique fallacieuse, qui "
-        "consisterait à lire au niveau individuel une relation observée entre contextes, et l'erreur atomiste, qui "
-        "consisterait à ignorer l'influence des normes et des ressources du milieu de vie sur les comportements "
-        "individuels.")
 
     # --- Graphique en chenille ---
     if binary:
@@ -486,12 +522,26 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
         u = pd.DataFrame({"est": [float(np.asarray(v)[0]) for v in re_.values()],
                           "se": np.sqrt(final.sigma2_u * 0 + np.nan_to_num(_lmm_re_se(final)))})
     p = figures.caterpillar(u, outdir, f"Contextes ({ds.variables[cluster].label})")
-    sec.figures.append(Figure(p, f"Effets aléatoires des contextes estimés ({final_name}), avec IC à 95 %"))
+    sec.figures.append(Figure(p, f"Effets aléatoires des contextes estimés dans le modèle {final_name} et intervalles "
+                                 "de confiance à 95 %"))
     n_extreme = int(((u["est"] - 1.96 * u["se"]) > 0).sum() + ((u["est"] + 1.96 * u["se"]) < 0).sum())
     sec.facts["mn.contextes_extremes"] = n_extreme
+    if n_extreme == 0:
+        sec.paragraphs.append("L'examen des effets aléatoires montre qu'aucun contexte ne se distingue "
+                              "significativement de la moyenne, l'intervalle de confiance de chaque effet aléatoire "
+                              "incluant zéro.")
+    else:
+        sec.paragraphs.append(
+            f"L'examen des effets aléatoires montre que "
+            f"{nombre(n_extreme, 'contextes') if n_extreme > 1 else 'un (01) contexte'} sur {fmt.integer(J)} "
+            f"{'se distinguent' if n_extreme > 1 else 'se distingue'} significativement de la moyenne, l'intervalle de "
+            f"confiance de l'effet aléatoire excluant zéro. {'Ils constituent' if n_extreme > 1 else 'Il constitue'} "
+            "des terrains privilégiés pour une étude approfondie.")
     sec.paragraphs.append(
-        f"{n_extreme} contexte(s) sur {J} se distinguent significativement de la moyenne (intervalle de confiance de "
-        "l'effet aléatoire excluant zéro) : ils constituent des terrains privilégiés pour une étude approfondie.")
+        "Ces résultats doivent être lus en gardant à l'esprit deux écueils. Le premier est l'inférence écologique "
+        "fallacieuse, qui consisterait à lire au niveau individuel une relation observée entre contextes. Le second "
+        "est l'erreur atomiste, qui consisterait à ignorer l'influence des normes et des ressources du milieu de vie "
+        "sur les comportements individuels.")
 
     sec.method_notes.append(
         f"Pour tenir compte de la structure hiérarchique des données ({fmt.integer(dsg.n_used)} individus dans {J} "
@@ -509,7 +559,7 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
           "vraisemblance, avec une loi de référence corrigée pour la valeur frontière (Self et Liang, 1987). "
         + ("Les variables contextuelles sont celles qui sont constantes au sein de chaque contexte. "
            if level2 is None else "")
-        + ("Les variables quantitatives (" + ", ".join(f"« {c} »" for c in centred) + ") sont centrées sur leur "
+        + ("Les variables quantitatives (" + enumeration([R.v(c) for c in centred_vars]) + ") sont centrées sur leur "
            "moyenne générale, de sorte que la constante et la variance contextuelle se rapportent à un individu de "
            "valeurs moyennes." if centred else ""))
     sec.extra["fits"] = fits

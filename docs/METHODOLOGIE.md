@@ -48,7 +48,7 @@ Ces règles s'appuient sur les manuels de référence (cités en fin de document
 | Règle de Cochran non respectée, tableau > 2 × 2 | Khi-deux avec probabilité critique par simulation de Monte-Carlo (10 000 tirages) | V de Cramér, fiabilité signalée « faible » |
 | Deux variables ordinales (ou ordinale × binaire ordonnable) | Khi-deux + test de la tendance | d de Somers (1962) asymétrique, VD en ligne |
 
-**Règle de choix du coefficient** (synthèse des coefficients d'association, ISSP) : on retient le coefficient adapté à la variable de **plus faible** niveau de mesure — V de Cramér dès qu'une variable est nominale ; d de Somers si les deux sont au moins ordinales ; r de Pearson seulement si les deux sont d'intervalle ou de rapport.
+**Règle de choix du coefficient** (synthèse des coefficients d'association, ISSP) : on retient le coefficient adapté à la variable de **plus faible** niveau de mesure : V de Cramér dès qu'une variable est nominale ; d de Somers si les deux sont au moins ordinales ; r de Pearson seulement si les deux sont d'intervalle ou de rapport.
 
 **Repères d'intensité** (indicatifs) :
 
@@ -113,7 +113,7 @@ Démarche par étapes, du plus simple au plus complexe (Soura, cours 2POP2302 ; 
 
 ## 7. Analyses multivariées descriptives
 
-- **ACP** (variables quantitatives, au moins 3) : diagnostics de factorabilité **avant** interprétation — indice KMO (Kaiser, 1974 ; < 0,50 inacceptable), test de sphéricité de Bartlett (1950), analyse parallèle de Horn (1965, 500 réplications, quantile 95 %). Si ces diagnostics échouent, l'absence de structure factorielle est rapportée comme un **résultat** et l'ACP n'est pas interprétée comme une réduction.
+- **ACP** (variables quantitatives, au moins 3) : diagnostics de factorabilité **avant** interprétation, à savoir l'indice KMO (Kaiser, 1974 ; < 0,50 inacceptable), test de sphéricité de Bartlett (1950), analyse parallèle de Horn (1965, 500 réplications, quantile 95 %). Si ces diagnostics échouent, l'absence de structure factorielle est rapportée comme un **résultat** et l'ACP n'est pas interprétée comme une réduction.
 - **AFCM / ACM** (variables qualitatives, au moins 3) : taux d'inertie corrigés de Benzécri (1979), contributions et cosinus carrés des modalités (Greenacre, 2017).
 - **Classification ascendante hiérarchique** sur les coordonnées factorielles, critère de Ward (1963) ; nombre de classes par la largeur moyenne de silhouette (Rousseeuw, 1987) ; description des classes par les modalités sur-représentées (test de la valeur-test).
 - **Cohérence interne d'une échelle** : α de Cronbach (1951) ; seuil conventionnel de 0,70. Un α faible sur un indice de comptage est interprété comme un indice formatif, et non comme une mauvaise mesure.
@@ -135,7 +135,7 @@ Estimateur de Kaplan-Meier (1958), test du log-rank (Mantel, 1966), modèle de C
 
 | Document | Structure |
 |---|---|
-| Article scientifique | Résumé et mots-clés, Introduction (avec revue), Données et méthodes, Résultats, Discussion, Conclusion, Références — format IMRaD ; proportions indicatives : introduction 10 %, méthodes 20 %, résultats 20 %, discussion 40 % (Duchemin) |
+| Article scientifique | Résumé et mots-clés, Introduction (avec revue), Données et méthodes, Résultats, Discussion, Conclusion, Références (format IMRaD) ; proportions indicatives : introduction 10 %, méthodes 20 %, résultats 20 %, discussion 40 % (Duchemin) |
 | Mémoire | Introduction générale ; cadre théorique et conceptuel (revue, hypothèses) ; méthodologie (sources, variables, méthodes) ; résultats descriptifs ; facteurs associés (bivarié) ; analyse explicative (multivarié, multi-niveaux) ; discussion ; conclusion et recommandations ; bibliographie ; annexes |
 | Rapport de stage | Remerciements ; introduction ; présentation de la structure d'accueil (à compléter par l'auteur) ; cadre théorique ; données et méthodes ; résultats et discussion ; apport du stage (à compléter) ; conclusion ; bibliographie ; annexes |
 | Rapport d'étude | Résumé exécutif ; contexte et objectifs ; méthodologie ; résultats ; conclusions et recommandations ; annexes méthodologiques |
@@ -143,7 +143,23 @@ Estimateur de Kaplan-Meier (1958), test du log-rank (Mantel, 1966), modèle de C
 
 Chaque tableau porte un numéro, un titre explicite, une source (« Source : données de l'utilisateur, calculs de l'auteur ») et une note de lecture des seuils de significativité. Les sections que seule une personne peut rédiger (remerciements, présentation de la structure d'accueil, apport personnel) sont marquées clairement **[À compléter par l'auteur]** : l'application ne les invente pas.
 
-## 11. Ce que l'application ne fait pas, et le dit
+## 11. Style de rédaction
+
+Les textes produits suivent les usages des mémoires et rapports de stage en statistique sociale et en démographie, et non le style d'un outil :
+
+- aucun tiret long ni demi-cadratin comme ponctuation (virgule, deux-points ou parenthèses à la place) ; un nettoyage typographique final s'applique aussi aux textes rédigés par un modèle de langage et au texte de cadrage saisi par l'auteur ;
+- première personne du pluriel (« nous constatons que », « nous pouvons donc dire que ») ou forme impersonnelle (« il ressort que », « il convient de préciser que ») ;
+- connecteurs sobres et variés (En effet, Par ailleurs, De même, Quant à, En ce qui concerne, En revanche, Enfin) ;
+- petits effectifs écrits en lettres suivis des chiffres entre parenthèses (« sept (07) variables »), chiffres seuls au-delà de 99 ;
+- variables désignées par un groupe nominal avec article (« le niveau d'instruction »), guillemets réservés aux modalités (« Primaire ») ;
+- modalités d'une même variable regroupées dans un seul paragraphe, avec la tendance d'ensemble lorsqu'elle est monotone (« Nous pouvons donc dire que les chances d'utiliser une méthode contraceptive moderne augmentent avec le niveau d'instruction ») ;
+- probabilités critiques écrites en toutes lettres dans le texte (« une probabilité critique inférieure à 0,001 »), symboles réservés aux parenthèses et aux tableaux.
+
+**Lecture des rapports de cotes.** Conformément à l'usage en démographie (cours de régression logistique de l'ISSP), un rapport de cotes supérieur à 1 est lu comme « x fois plus de chances » et un rapport inférieur à 1 comme « (1 - OR) × 100 % moins de chances ». Il s'agit de rapports de cotes et non de rapports de probabilités ; les deux sont proches lorsque l'événement est peu fréquent, et la section Méthodes du document le rappelle.
+
+**Formulations personnalisables.** À l'étape « Variables », l'auteur peut préciser l'unité d'observation (« femmes », « ménages »), l'événement étudié à l'infinitif (« utiliser une méthode contraceptive moderne »), le nom de l'indicateur (« la prévalence contraceptive moderne ») et la formulation de chaque variable dans le texte. À l'étape « Demande », un extrait de sa propre écriture peut être fourni au modèle de langage, qui en imite la grammaire et les tournures sans en reprendre le contenu.
+
+## 12. Ce que l'application ne fait pas, et le dit
 
 - Pas d'inférence causale sur des données d'observation (pas de variables instrumentales ni d'appariement dans cette version).
 - Pas de plan de sondage complexe complet (stratification et pondération dans les estimations de variance) : la pondération est appliquée aux descriptifs, et les erreurs types sont robustes à la grappe si une grappe est déclarée. Un avertissement le rappelle dans la section Méthodes.

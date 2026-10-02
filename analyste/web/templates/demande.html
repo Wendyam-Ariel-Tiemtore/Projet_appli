@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block titre %}Demande — {{ projet.nom }}{% endblock %}
+{% block titre %}Demande : {{ projet.nom }}{% endblock %}
 {% block largeur %}moyen{% endblock %}
 {% block contenu %}
 {% include "_parcours.html" %}
@@ -82,6 +82,8 @@
         <span>J'accepte que les <strong>résultats agrégés</strong> (paragraphes de résultats, intitulés des variables, texte de cadrage) soient envoyés à l'API d'Anthropic pour la rédaction. Les <strong>données individuelles</strong> ne sont jamais envoyées.</span></label>
     </div>
     {% endif %}
+    <label for="style_sample">Extrait de votre propre écriture (facultatif) <span class="aide">Collez un ou deux paragraphes d'un mémoire ou d'un rapport que vous avez rédigé. Le modèle de langage imitera votre grammaire et vos tournures, sans reprendre le contenu. L'extrait est chiffré avec le projet et n'est utilisé que par le modèle choisi ci-dessus.</span></label>
+    <textarea id="style_sample" name="style_sample" maxlength="2500">{{ spec.get('style_sample', '') }}</textarea>
     <label class="choix"><input type="checkbox" name="english_abstract" {% if spec.english_abstract %}checked{% endif %}>
       <span><strong class="titre">Ajouter un résumé en anglais</strong><span class="aide">Uniquement avec un modèle de langage.</span></span></label>
     <p class="aide">Tout texte rédigé par un modèle est vérifié automatiquement : un paragraphe contenant un nombre ou une référence absents des résultats est rejeté et remplacé.</p>

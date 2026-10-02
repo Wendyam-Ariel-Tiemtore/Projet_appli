@@ -95,7 +95,7 @@ def stacked_by_group(ct_pct: pd.DataFrame, x_label: str, y_label: str, outdir: P
                 ax.text(left[i] + v / 2, i, f"{v:.0f}", ha="center", va="center", fontsize=7, color="white")
         left += vals
     ax.set_xlim(0, 100)
-    ax.set_xlabel(f"Répartition de « {y_label} » (%)")
+    ax.set_xlabel(f"{y_label} : répartition en pourcentage")
     ax.set_ylabel(x_label)
     ax.grid(axis="y", visible=False)
     ax.legend(frameon=False, bbox_to_anchor=(1.0, 1.0), loc="upper left", fontsize=8)

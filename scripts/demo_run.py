@@ -42,7 +42,11 @@ def main() -> None:
         cluster="grappe", references={"groupe_age": "15-24 ans"},
         kinds={"instruction": "ordinale", "quintile_bien_etre": "ordinale"}, labels=LABELS,
         privacy_actions={"nom": "supprimer", "prenom": "supprimer", "telephone": "supprimer"},
-        time_var="duree_avant_union", event_var="premiere_union", survival_group="instruction")
+        time_var="duree_avant_union", event_var="premiere_union", survival_group="instruction",
+        textes={"prop_instruites_grappe": "la proportion de femmes instruites dans la grappe",
+                "csps_village": "la présence d'un CSPS dans la localité"},
+        redaction={"unite": "femmes", "evenement": "utiliser une méthode contraceptive moderne",
+                   "indicateur": "la prévalence contraceptive moderne"})
     spec = RequestSpec(
         doc_type=doc_type,
         title="Facteurs individuels et contextuels de l'utilisation de la contraception moderne chez les femmes de "

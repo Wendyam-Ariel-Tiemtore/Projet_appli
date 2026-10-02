@@ -13,10 +13,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from .stats import audit, bivariate, descriptive, fmt, models, multilevel, multivariate, survival
+from .stats import audit, bivariate, descriptive, models, multilevel, multivariate, survival
 from .stats.io import KINDS, Dataset
 from .stats.results import Section, Table
 from .writing.composer import RequestSpec, compose
+from .writing.style import nettoyer, nombre
 
 Progress = Callable[[int, str], None]
 
@@ -39,6 +40,8 @@ class AnalysisConfig:
     scales: dict[str, list[str]] = field(default_factory=dict)
     kinds: dict[str, str] = field(default_factory=dict)
     labels: dict[str, str] = field(default_factory=dict)
+    textes: dict[str, str] = field(default_factory=dict)  # formulation de la variable dans le texte
+    redaction: dict[str, str] = field(default_factory=dict)  # unite, evenement, indicateur
     orders: dict[str, list[str]] = field(default_factory=dict)
     privacy_actions: dict[str, str] = field(default_factory=dict)
     literature: bool = False
@@ -61,9 +64,14 @@ def apply_overrides(ds: Dataset, cfg: AnalysisConfig) -> None:
     for v, lab in cfg.labels.items():
         if v in ds.variables and lab.strip():
             ds.variables[v].label = lab.strip()[:120]
+    for v, txt in cfg.textes.items():
+        if v in ds.variables and txt.strip():
+            ds.variables[v].texte = nettoyer(txt.strip())[:150]
     for v, order in cfg.orders.items():
         if v in ds.variables and order:
             ds.variables[v].categories = [str(o) for o in order]
+    ds.redaction = {k: nettoyer(str(cfg.redaction.get(k, "")).strip())[:200]
+                    for k in ("unite", "evenement", "indicateur") if str(cfg.redaction.get(k, "")).strip()}
 
 
 def run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, settings, secret: bytes,
@@ -86,7 +94,7 @@ def run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, sett
     sections["qualite"] = audit.quality_section(ds, used, cfg.outcome)
 
     say(15, "Analyse descriptive")
-    sections["descriptif"] = descriptive.describe(ds, used, figdir, weight=cfg.weight)
+    sections["descriptif"] = descriptive.describe(ds, used, figdir, weight=cfg.weight, outcome=cfg.outcome)
 
     expl = [v for v in cfg.explanatory if v in ds.variables and v != cfg.outcome and v != cfg.cluster]
     if cfg.outcome and expl:
@@ -195,14 +203,14 @@ def _failed(key: str, title: str, exc: Exception) -> Section:
 def _data_info(ds: Dataset, cfg: AnalysisConfig, sections: dict[str, Section]) -> dict:
     n = len(ds.df)
     used = [v for v in [cfg.outcome, *cfg.explanatory] if v]
-    desc = (f"La base analysée compte {fmt.integer(n)} observations et {len(ds.df.columns)} variables, dont "
-            f"{len(set(used))} mobilisées dans les analyses.")
+    desc = (f"La base analysée compte {nombre(n, 'observations', True)} et {nombre(len(ds.df.columns), 'variables')}, "
+            f"dont {nombre(len(set(used)), 'variables')} retenues pour les analyses.")
     if cfg.outcome:
-        desc += f" La variable dépendante est « {ds.variables[cfg.outcome].label} »."
+        desc += f" La variable dépendante est {ds.variables[cfg.outcome].prose}."
     if cfg.cluster:
         k = ds.df[cfg.cluster].nunique()
-        desc += (f" Les observations sont regroupées dans {fmt.integer(k)} contextes "
-                 f"(« {ds.variables[cfg.cluster].label} »).")
+        desc += (f" Les observations sont réparties entre {nombre(k, 'unités', True)} de niveau 2, identifiées par "
+                 f"{ds.variables[cfg.cluster].prose}.")
     params = {
         "date_analyse": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "graine_aleatoire": 42, "seuil": 0.05, "correction_multiplicite": "Benjamini-Hochberg",
@@ -235,13 +243,14 @@ def _variables_table(ds: Dataset, cfg: AnalysisConfig) -> Table:
         if v not in ds.variables:
             continue
         info = ds.variables[v]
-        mods = ", ".join(info.categories[:8]) + ("…" if len(info.categories) > 8 else "") if info.categories else "–"
+        mods = ", ".join(info.categories[:8]) + ("…" if len(info.categories) > 8 else "") if info.categories else "-"
         rows.append({"Variable": info.label, "Nom": v, "Rôle": role, "Type": info.kind,
                      "Modalités": mods if info.kind in ("binaire", "nominale", "ordinale")
                      and not role.startswith("Contexte") else (f"{len(info.categories)} modalités"
-                                                              if info.categories else "–")})
+                                                              if info.categories else "-")})
     return Table(title="Variables de l'étude", data=pd.DataFrame(rows),
-                 note="Le type de chaque variable détermine les méthodes appliquées (voir Méthodes d'analyse).")
+                 note="Le type de chaque variable détermine les méthodes appliquées (voir la section consacrée aux méthodes "
+                      "d'analyse).")
 
 
 def _software_versions() -> dict[str, str]:

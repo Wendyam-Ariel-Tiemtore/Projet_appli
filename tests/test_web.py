@@ -57,11 +57,18 @@ def test_parcours_complet_et_isolation(app, demo_csv):
         form[f"role__{n}"] = roles.get(n, "ignorer")
     for n in ("nom", "prenom", "telephone"):
         form[f"priv__{n}"] = "supprimer"
+    assert 'name="texte__instruction"' in r.text and 'name="red_unite"' in r.text
+    form.update({"texte__instruction": "le niveau d'instruction de la femme", "red_unite": "femmes",
+                 "red_evenement": "utiliser une méthode contraceptive moderne"})
     assert c.post(f"/projets/{pid}/variables", data=form, follow_redirects=False).status_code == 303
+    r = c.get(f"/projets/{pid}/variables")
+    assert "le niveau d&#39;instruction de la femme" in r.text and 'value="femmes"' in r.text
 
     r = c.get(f"/projets/{pid}/demande")
+    assert 'name="style_sample"' in r.text
     r = c.post(f"/projets/{pid}/demande", data={"csrf": csrf(r.text), "doc_type": "article", "title": "Essai",
-                                                 "llm": "aucun"}, follow_redirects=False)
+                                                 "llm": "aucun", "style_sample": "Nous constatons que..."},
+               follow_redirects=False)
     assert r.status_code == 303
     for _ in range(120):
         etat = c.get(f"/projets/{pid}/etat").json()

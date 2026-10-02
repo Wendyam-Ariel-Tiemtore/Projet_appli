@@ -69,6 +69,10 @@ Il pourrait essayer ; l'application l'en empêche. Tout paragraphe rédigé par 
 
 Oui, selon les règles de votre institution. Une déclaration type figure en annexe de chaque document produit. L'outil automatise des calculs et une mise en forme ; la démarche scientifique, la problématique et l'interprétation restent les vôtres.
 
+### Le texte produit ressemble-t-il à un texte généré par une IA ?
+
+Non. Les paragraphes sont rédigés dans le style des mémoires de statistique sociale et de démographie : « nous » de modestie, connecteurs sobres, petits nombres écrits en lettres (« sept (07) »), rapports de cotes lus en « fois plus de chances », aucune ponctuation par tiret long. Un nettoyage typographique final s'applique à tout le document, y compris aux textes rédigés par un modèle. Pour un rendu encore plus personnel, précisez à l'étape « Variables » l'unité d'observation, l'événement étudié et la formulation de chaque variable, puis collez à l'étape « Demande » un extrait de l'un de vos propres textes : le modèle de langage en imitera les tournures.
+
 ### Quelle différence entre rédaction locale et rédaction par Claude ?
 
 | Option | Où s'exécute le modèle | Ce qui est envoyé | Qualité de rédaction |

@@ -11,6 +11,7 @@ import pandas as pd
 
 from ..stats import fmt
 from ..stats.results import Section, Table
+from ..writing.style import guillemets, nombre, ordinal
 from .sources import Work
 
 STOP = set("""a au aux avec ce ces dans de des du elle en et eux il je la le les leur lui ma mais me même mes moi
@@ -107,8 +108,8 @@ def literature_section(works: list[Work], log: dict, topic: str, extractor=None,
     sec.refs.add("priem2022")
     if not works:
         msg = log.get("erreur") or "aucun résultat"
-        sec.warnings.append(f"Recherche bibliographique non aboutie : {msg}. La revue de littérature est à compléter "
-                            "par l'auteur.")
+        sec.warnings.append(f"La recherche bibliographique n'a pas abouti ({msg}). La revue de littérature est donc à "
+                            "compléter par l'auteur.")
         sec.paragraphs.append("[À compléter par l'auteur : revue de la littérature.]")
         return sec
     selected = rank(works)
@@ -119,7 +120,7 @@ def literature_section(works: list[Work], log: dict, topic: str, extractor=None,
             if better and len(better) == len(names):
                 names = better
         except Exception as exc:  # noqa: BLE001 - l'intitulé automatique est conservé
-            sec.warnings.append(f"Intitulés de thèmes non reformulés ({type(exc).__name__}).")
+            sec.warnings.append(f"Les intitulés de thèmes n'ont pas pu être reformulés ({type(exc).__name__}).")
     for w in selected:
         ex = None
         if extractor:
@@ -130,11 +131,12 @@ def literature_section(works: list[Work], log: dict, topic: str, extractor=None,
         w.extracted = ex or extract_rule_based(w)
     sec.paragraphs.append(
         f"La recherche documentaire a été conduite le {_date_fr(log.get('date'))} dans la base bibliographique "
-        f"ouverte {log.get('base')} à partir des mots-clés « {log.get('requete')} ». Elle a renvoyé "
-        f"{log.get('n_bruts')} références ; après suppression des doublons et classement selon la pertinence et "
-        f"l'impact, {len(selected)} travaux ont été retenus et regroupés en {len(names)} ensembles thématiques par "
-        "analyse lexicale de leurs titres et résumés. Les éléments des tableaux de synthèse sont tirés des résumés : "
-        "ils doivent être vérifiés à la lecture des textes intégraux.")
+        f"ouverte {log.get('base')}, à partir des mots-clés {guillemets(str(log.get('requete')))}. Elle a renvoyé "
+        f"{nombre(int(log.get('n_bruts') or 0), 'références', True)}. Après suppression des doublons et classement selon "
+        f"la pertinence et l'impact, {nombre(len(selected), 'travaux')} ont été retenus, puis regroupés en "
+        f"{nombre(len(names), 'ensembles')} thématiques par analyse lexicale de leurs titres et résumés. Il convient "
+        "de préciser que les éléments des tableaux de synthèse sont tirés des résumés : ils doivent donc être vérifiés "
+        "à la lecture des textes intégraux.")
     sec.facts.update({"litt.n_bruts": log.get("n_bruts"), "litt.n_retenus": len(selected), "litt.n_themes": len(names)})
     for t, name in enumerate(names):
         members = [w for w, lab in zip(selected, labels, strict=True) if lab == t]
@@ -144,16 +146,17 @@ def literature_section(works: list[Work], log: dict, topic: str, extractor=None,
         cites = " ; ".join(w.citation() for w in members[:8])
         yrs = [w.year for w in members if w.year]
         span = f"entre {min(yrs)} et {max(yrs)}" if yrs else ""
+        verbe = "réunit" if t % 2 == 0 else "regroupe"
         sec.paragraphs.append(
-            f"Thème {t + 1} — {name}. Ce premier ensemble réunit {len(members)} travaux publiés {span} ({cites})."
-            if t == 0 else
-            f"Thème {t + 1} — {name}. Cet ensemble regroupe {len(members)} travaux publiés {span} ({cites}).")
+            f"Le {ordinal(t + 1)} thème, intitulé {guillemets(name)}, {verbe} "
+            f"{nombre(len(members), 'travaux') if len(members) > 1 else 'un (01) travail'} publié"
+            f"{'s' if len(members) > 1 else ''} {span} ({cites}).".replace("  ", " ").replace(" (", " (", 1))
         rows = []
         for w in members:
             e = w.extracted
             rows.append({"Auteur(s), année": w.citation(), "Objet": e.get("objet", ""), "Méthode": e.get("methode", ""),
                          "Résultats principaux": e.get("resultats", ""), "Limites et perspectives": e.get("limites", "")})
-        sec.tables.append(Table(title=f"Synthèse de la littérature — thème {t + 1} : {name}", data=pd.DataFrame(rows),
+        sec.tables.append(Table(title=f"Synthèse de la littérature, thème {t + 1} : {name}", data=pd.DataFrame(rows),
                                 note="Éléments extraits des résumés des articles.",
                                 source=f"Source : {log.get('base')}, recherche du {_date_fr(log.get('date'))}."))
     sec.paragraphs.append(
@@ -162,13 +165,13 @@ def literature_section(works: list[Work], log: dict, topic: str, extractor=None,
     sec.extra["works"] = selected
     sec.method_notes.append(
         f"La revue de la littérature s'appuie sur une recherche dans la base ouverte {log.get('base')} (Priem, Piwowar et "
-        "Orr, 2022) ; seuls les mots-clés du sujet y ont été transmis.")
+        "Orr, 2022). Seuls les mots-clés du sujet ont été transmis à cette base.")
     return sec
 
 
 def _date_fr(iso: str | None) -> str:
     if not iso:
-        return "–"
+        return "-"
     mois = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre",
             "novembre", "décembre"]
     y, m, d = (int(x) for x in iso.split("-"))

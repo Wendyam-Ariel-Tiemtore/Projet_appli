@@ -42,6 +42,12 @@ class VariableInfo:
     ordered: bool = False
     suggested_role: str = "explicative"  # explicative | ignorer
     reason: str = ""
+    texte: str = ""  # groupe nominal employé dans la rédaction (« le niveau d'instruction »)
+
+    @property
+    def prose(self) -> str:
+        from ..writing.style import avec_article
+        return self.texte or avec_article(self.label)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -52,6 +58,8 @@ class Dataset:
     df: pd.DataFrame
     variables: dict[str, VariableInfo]
     source_format: str
+    # Formulations de rédaction : unité d'observation, événement (infinitif), indicateur (groupe nominal)
+    redaction: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------

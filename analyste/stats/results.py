@@ -40,6 +40,7 @@ class Section:
     refs: set[str] = field(default_factory=set)
     facts: dict[str, Any] = field(default_factory=dict)  # nombres autorisés pour la rédaction assistée
     level: int = 2
+    key_points: list[str] = field(default_factory=list)  # phrases de synthèse (résumé, discussion, conclusion)
     extra: dict[str, Any] = field(default_factory=dict)  # objets internes (non publiés)
 
     def add_facts(self, prefix: str, values: dict[str, Any]) -> None:

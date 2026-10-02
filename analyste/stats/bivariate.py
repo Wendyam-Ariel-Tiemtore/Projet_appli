@@ -11,6 +11,9 @@ import pandas as pd
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
 
+from ..writing.phrases import Redac, accord, est, pcrit, pronom
+from ..writing.style import a as a_
+from ..writing.style import de, enumeration, genre, guillemets, majuscule, nombre, sans_article
 from . import figures, fmt
 from .io import Dataset, as_categorical
 from .results import Figure, Section, Table
@@ -205,7 +208,7 @@ def games_howell(groups: dict[str, np.ndarray]) -> pd.DataFrame:
         dfw = (va / na + vb / nb) ** 2 / ((va / na) ** 2 / (na - 1) + (vb / nb) ** 2 / (nb - 1))
         q = abs(diff) / se * np.sqrt(2)
         p = float(stats.studentized_range.sf(q, k, dfw))
-        rows.append({"Comparaison": f"{a} – {b}", "Différence": diff, "p ajustée": min(p, 1.0)})
+        rows.append({"Comparaison": f"{a} / {b}", "Différence": diff, "p ajustée": min(p, 1.0)})
     return pd.DataFrame(rows)
 
 
@@ -228,7 +231,7 @@ def dunn_holm(groups: dict[str, np.ndarray]) -> pd.DataFrame:
         se = np.sqrt((n * (n + 1) / 12 - tie) * (1 / sizes[a] + 1 / sizes[b]))
         z = (mean_rank[a] - mean_rank[b]) / se
         p = 2 * stats.norm.sf(abs(z))
-        rows.append({"Comparaison": f"{a} – {b}", "Différence": mean_rank[a] - mean_rank[b]})
+        rows.append({"Comparaison": f"{a} / {b}", "Différence": mean_rank[a] - mean_rank[b]})
         ps.append(p)
     adj = multipletests(ps, method="holm")[1] if ps else []
     out = pd.DataFrame(rows)
@@ -242,7 +245,7 @@ def tukey_kramer(groups: dict[str, np.ndarray]) -> pd.DataFrame:
     labs = np.concatenate([[k] * len(v) for k, v in groups.items()])
     res = pairwise_tukeyhsd(vals, labs)
     tab = pd.DataFrame(res.summary().data[1:], columns=res.summary().data[0])
-    return pd.DataFrame({"Comparaison": tab["group1"].astype(str) + " – " + tab["group2"].astype(str),
+    return pd.DataFrame({"Comparaison": tab["group1"].astype(str) + " / " + tab["group2"].astype(str),
                          "Différence": tab["meandiff"].astype(float), "p ajustée": tab["p-adj"].astype(float)})
 
 
@@ -365,6 +368,8 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
     results: list[TestResult] = []
     y_cat = yinfo.kind in CAT_KINDS
     ys = as_categorical(df[outcome], yinfo) if y_cat else pd.to_numeric(df[outcome], errors="coerce")
+    from .design import event_level_for as _evl
+    R = Redac(ds, outcome, _evl([str(c) for c in ys.cat.categories]) if yinfo.kind == "binaire" else None)
 
     for col in explanatory:
         if col == outcome:
@@ -404,7 +409,7 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
               "critique corrigée par la procédure de Benjamini et Hochberg pour l'ensemble des variables testées.")
 
     def assoc(r):
-        return f"{abbrev.get(r.effect_label, r.effect_label)} = {fmt.num(r.effect)}" if r.effect_label else "–"
+        return f"{abbrev.get(r.effect_label, r.effect_label)} = {fmt.num(r.effect)}" if r.effect_label else "-"
 
     if y_cat:
         cats = [str(c) for c in ys.cat.categories]
@@ -426,15 +431,17 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
             for mod in ct.index:
                 row = {"Variable": "", "Modalité": str(mod), "N": fmt.integer(ct.loc[mod].sum())}
                 for c in show:
-                    row[f"% « {c} »"] = fmt.pct(rp.loc[mod, c]) if c in rp.columns else "–"
+                    row[f"% « {c} »"] = fmt.pct(rp.loc[mod, c]) if c in rp.columns else "-"
                 row.update({"Test": "", "p": "", "p (FDR)": "", "Association": ""})
                 rows.append(row)
         if rows:
             sec.tables.append(Table(
-                title=f"Variables qualitatives associées à « {ylab} » : tests bivariés",
+                title=f"Association entre {R.y} et les variables explicatives qualitatives",
                 data=pd.DataFrame(rows),
-                note=(f"Pourcentages en ligne : part de la modalité « {ev} » de « {ylab} » dans chaque groupe. "
-                      if binary else f"Pourcentages en ligne : répartition de « {ylab} » dans chaque groupe. ")
+                note=(f"Les pourcentages sont calculés en ligne : il s'agit de la part de la modalité « {ev} » "
+                      f"{R.de_y()} dans chaque groupe. " if binary else
+                      f"Les pourcentages sont calculés en ligne : il s'agit de la répartition {R.de_y()} dans chaque "
+                      "groupe. ")
                 + legend))
         qrows = []
         for r in [r for r in results if "groupes" in r.details]:
@@ -442,17 +449,17 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
             row = {"Variable": info.label, "N": fmt.integer(r.n)}
             for c in cats:
                 g = r.details["groupes"].get(c)
-                row[f"« {c} »"] = ("–" if not g else f"{fmt.num(g['moyenne'])} ({fmt.num(g['ecart_type'])})"
+                row[f"« {c} »"] = ("-" if not g else f"{fmt.num(g['moyenne'])} ({fmt.num(g['ecart_type'])})"
                                    if r.details.get("parametrique") else
                                    f"{fmt.num(g['mediane'])} [{fmt.num(g['q1'])} ; {fmt.num(g['q3'])}]")
             row.update({"Test": r.test, "p": fmt.pval(r.p), "p (FDR)": fmt.pval(r.p_fdr), "Association": assoc(r)})
             qrows.append(row)
         if qrows:
             sec.tables.append(Table(
-                title=f"Variables quantitatives selon « {ylab} » : tests bivariés",
+                title=f"Comparaison des variables explicatives quantitatives selon {R.y}",
                 data=pd.DataFrame(qrows),
-                note=f"Colonnes : modalités de « {ylab} ». Moyenne (écart type) si le test est paramétrique, médiane "
-                     "[Q1 ; Q3] sinon. " + legend))
+                note=f"Les colonnes correspondent aux modalités {R.de_y()}. Les cellules donnent la moyenne (écart "
+                     "type) si le test est paramétrique, la médiane [Q1 ; Q3] sinon. " + legend))
     else:
         rows = []
         for r in results:
@@ -471,17 +478,17 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
                 rows.append({"Variable": info.label, "Modalité": "(corrélation)", "N": fmt.integer(r.n),
                              "Moyenne (é.-t.)": "", "Médiane [Q1 ; Q3]": "", "Test": r.test, "p": fmt.pval(r.p),
                              "p (FDR)": fmt.pval(r.p_fdr), "Taille d'effet": f"{assoc(r)}{ci}"})
-        sec.tables.append(Table(title=f"Facteurs associés à « {ylab} » : tests bivariés", data=pd.DataFrame(rows),
-                                note=f"Moyennes et médianes de « {ylab} » selon chaque modalité. " + legend))
+        sec.tables.append(Table(title=f"Association entre {R.y} et les variables explicatives", data=pd.DataFrame(rows),
+                                note=f"Moyennes et médianes {R.de_y()} selon chaque modalité. " + legend))
 
     # --- Tableau des justifications ---
     just_rows = [{"Variable": ds.variables[r.x].label, "Test retenu": r.test, "Justification": r.justification,
                   "Fiabilité": r.reliability} for r in results]
     sec.tables.append(Table(title="Choix des tests bivariés et conditions d'application",
                             data=pd.DataFrame(just_rows),
-                            note="Le test est choisi automatiquement selon les règles exposées dans la section "
-                                 "Méthodes ; la fiabilité est jugée faible lorsque plus de 20 % des effectifs "
-                                 "attendus sont inférieurs à 5."))
+                            note="Le test est choisi selon les règles exposées dans la section consacrée aux "
+                                 "méthodes ; la fiabilité est jugée faible lorsque plus de 20 % des effectifs "
+                                 "attendus sont inférieurs à cinq."))
 
     # --- Post-hoc ---
     for r in results:
@@ -490,7 +497,7 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
             ph["Différence"] = ph["Différence"].map(fmt.num)
             ph["p ajustée"] = ph["p ajustée"].map(fmt.pval)
             sec.tables.append(Table(
-                title=f"Comparaisons deux à deux de « {ylab if not y_cat else ds.variables[r.x].label} » "
+                title=f"Comparaisons deux à deux {de(R.y if not y_cat else R.v(r.x))} "
                       f"({r.details.get('posthoc_nom')})",
                 data=ph,
                 note=("Différence de moyennes (Tukey-Kramer, Games-Howell) ou de rangs moyens (Dunn). "
@@ -500,19 +507,32 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
     tested = len(valid)
     sig = [r for r in valid if r.p_fdr < 0.05]
     sig_raw_only = [r for r in valid if r.p < 0.05 <= r.p_fdr]
-    sec.paragraphs.append(
-        f"Sur les {tested} variables croisées avec « {ylab} », {len(sig)} présentent une association "
-        f"statistiquement significative au seuil de 5 % après correction pour les tests multiples "
-        f"(procédure de Benjamini et Hochberg, 1995)"
-        + (f", et {len(sig_raw_only)} autre(s) ne l'étaient qu'avant correction" if sig_raw_only else "")
-        + ". Ces associations sont brutes : elles ne tiennent pas compte des autres facteurs, ce qui est l'objet de "
-          "l'analyse multivariée.")
+    intro = (f"Les tableaux ci-dessous présentent les associations testées entre {R.y} et chacune des variables "
+             f"explicatives. Sur les {nombre(tested, 'variables')} testées, ")
+    if not sig:
+        intro += "aucune ne ressort de manière significative au seuil de 5 % "
+    elif len(sig) == 1:
+        intro += "une seule ressort de manière significative au seuil de 5 % "
+    else:
+        intro += f"{nombre(len(sig), feminin=True)} ressortent de manière significative au seuil de 5 % "
+    intro += "après correction pour les tests multiples (procédure de Benjamini et Hochberg, 1995)"
+    if sig_raw_only:
+        noms = enumeration([R.v(r.x) for r in sig_raw_only])
+        if len(sig_raw_only) == 1:
+            intro += f", et une (01) autre, {noms}, ne l'est qu'avant cette correction"
+        else:
+            intro += f", et {nombre(len(sig_raw_only), feminin=True)} autres ({noms}) ne le sont qu'avant cette correction"
+    intro += (". Il convient de préciser que ces associations sont brutes : elles ne tiennent pas compte de l'influence "
+              "des autres facteurs, ce qui fera l'objet de l'analyse multivariée.")
+    sec.paragraphs.append(intro)
     sec.facts.update({"bivarie.nb_testees": tested, "bivarie.nb_significatives": len(sig),
                       "bivarie.nb_sig_avant_correction": len(sig) + len(sig_raw_only)})
+    k = 0
     for r in sorted(valid, key=lambda t: t.p):
-        txt = _sentence(r, ds, yinfo, ys, y_cat)
+        txt = _sentence(r, R, yinfo, y_cat, k, len(sig))
         if txt:
             sec.paragraphs.append(txt)
+            k += 1
         pref = f"biv.{r.x}"
         sec.facts.update({f"{pref}.p": r.p, f"{pref}.p_fdr": r.p_fdr, f"{pref}.effet": r.effect,
                           f"{pref}.stat": r.stat, f"{pref}.n": r.n})
@@ -533,10 +553,20 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
         if "or" in r.details:
             sec.facts.update({f"{pref}.or": r.details["or"], f"{pref}.or_lo": r.details["or_lo"],
                               f"{pref}.or_hi": r.details["or_hi"]})
-    ns = [ds.variables[r.x].label for r in valid if r.p_fdr >= 0.05]
-    if ns:
-        sec.paragraphs.append("Aucune association significative après correction n'est observée pour : "
-                              + ", ".join(f"« {v} »" for v in ns) + ".")
+    if sig:
+        top = enumeration([R.v(r.x) for r in sorted(sig, key=lambda t: t.p)[:3]])
+        sec.key_points.append(
+            f"L'analyse bivariée met en évidence une association significative entre {R.y} et "
+            f"{nombre(len(sig), feminin=True)} des {nombre(tested, 'variables')} testées, notamment {top}.")
+    ns = [R.v(r.x) for r in valid if r.p_fdr >= 0.05]
+    if len(ns) == 1:
+        sec.paragraphs.append(f"{'À l’inverse' if sig else 'Ainsi'}, {ns[0]} n'{est(ns[0])} pas "
+                              f"{accord('associé', ns[0])} de manière significative {a_(R.y)}.".replace("’", "'"))
+    elif ns:
+        masc = any(genre(sans_article(v)) == "m" for v in ns)
+        sec.paragraphs.append(f"{'À l’inverse' if sig else 'Ainsi'}, ni {', ni '.join(ns)} ne sont "
+                              f"{'associés' if masc else 'associées'} de manière significative {a_(R.y)}."
+                              .replace("’", "'"))
 
     # --- Figures ---
     nfig = 0
@@ -548,16 +578,16 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
             ct = r.details["crosstab"]
             rp = ct.div(ct.sum(axis=1), axis=0) * 100
             p = figures.stacked_by_group(rp, info.label, ylab, outdir)
-            sec.figures.append(Figure(p, f"« {ylab} » selon « {info.label} »"))
+            sec.figures.append(Figure(p, f"Répartition {de(R.y)} selon {R.v(r.x)}"))
         elif y_cat:
             p = figures.box_by_group(pd.to_numeric(df[r.x], errors="coerce"), ys, info.label, ylab, outdir)
-            sec.figures.append(Figure(p, f"Distribution de « {info.label} » selon « {ylab} »"))
+            sec.figures.append(Figure(p, f"Distribution {de(R.v(r.x))} selon {R.y}"))
         elif info.kind in CAT_KINDS:
             p = figures.box_by_group(ys, as_categorical(df[r.x], info), ylab, info.label, outdir)
-            sec.figures.append(Figure(p, f"Distribution de « {ylab} » selon « {info.label} »"))
+            sec.figures.append(Figure(p, f"Distribution {de(R.y)} selon {R.v(r.x)}"))
         else:
             p = figures.scatter(df[r.x], ys, info.label, ylab, outdir)
-            sec.figures.append(Figure(p, f"Relation entre « {info.label} » et « {ylab} »"))
+            sec.figures.append(Figure(p, f"Relation entre {R.v(r.x)} et {R.y}"))
         nfig += 1
 
     sec.method_notes.append(
@@ -576,48 +606,106 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
     return sec
 
 
-def _sentence(r: TestResult, ds: Dataset, yinfo, ys, y_cat: bool) -> str:
-    info = ds.variables[r.x]
-    lab, ylab = info.label, yinfo.label
-    stat = ""
+MESURES = {"V de Cramér": "un V de Cramér", "d de Somers": "un d de Somers", "d de Cohen": "un d de Cohen",
+           "Corrélation bisériale de rang": "une corrélation bisériale de rang", "ω²": "un ω²", "ε²": "un ε²",
+           "r de Pearson": "un coefficient de corrélation de Pearson",
+           "ρ de Spearman": "un coefficient de corrélation de Spearman"}
+
+
+def _stats_txt(r: TestResult) -> str:
+    """« avec un V de Cramér de 0,15 et une probabilité critique corrigée inférieure à 0,001 (χ² = 57,00 ; ddl = 1) »."""
+    txt = "avec "
+    if r.effect_label and not np.isnan(r.effect):
+        txt += f"{MESURES.get(r.effect_label, 'un ' + r.effect_label)} de {fmt.num(r.effect)} et "
+    txt += pcrit(r.p_fdr, corrigee=True)
     if r.stat_label and not np.isnan(r.stat):
-        dfs = f"({fmt.num(r.df, 0) if r.df is not None and float(r.df).is_integer() else fmt.num(r.df, 1)})" \
-            if r.df is not None else ""
-        stat = f"{r.stat_label}{dfs} = {fmt.num(r.stat)}, "
-    ptxt = f"{stat}{fmt.p_phrase(r.p)}, p corrigée {fmt.pval(r.p_fdr) if fmt.pval(r.p_fdr).startswith('<') else '= ' + fmt.pval(r.p_fdr)}"
-    eff = (f"{r.effect_label} = {fmt.num(r.effect)}" + (f", IC à 95 % {fmt.ci(*r.effect_ci)}" if r.effect_ci else "")
-           if r.effect_label else "")
-    signif = r.p_fdr < 0.05
-    if not signif:
+        stat = f"{r.stat_label} = {fmt.num(r.stat)}"
+        if r.df is not None:
+            stat += f" ; ddl = {fmt.num(r.df, 0) if float(r.df).is_integer() else fmt.num(r.df, 1)}"
+        txt += f" ({stat})"
+    return txt
+
+
+def _intensite(strength: str, k: int) -> str:
+    faible = strength in ("faible", "très faible", "négligeable")
+    if k % 3 == 0:
+        return f"L'intensité de cette association {'reste' if faible else 'est'} {strength}."
+    if k % 3 == 1:
+        return f"Il s'agit {'toutefois ' if faible else ''}d'une association d'intensité {strength}."
+    return f"Cette association est d'intensité {strength}."
+
+
+def _sentence(r: TestResult, R, yinfo, y_cat: bool, k: int, total: int = 0) -> str:
+    """Commentaire d'une association significative, dans le style des mémoires de statistique sociale."""
+    if not r.p_fdr < 0.05:
         return ""
-    head = f"L'association entre « {lab} » et « {ylab} » est significative ({r.test} : {ptxt}) et d'intensité {r.strength} ({eff})."
+    x = R.v(r.x)
+    st = _stats_txt(r)
+    ass = accord("associé", x)
+    if k == 0:
+        head = f"{majuscule(x)} {est(x)} {ass} de manière significative {a_(R.y)}, {st}."
+    elif total >= 3 and k == total - 1:
+        head = f"Enfin, {x} {est(x)} {ass} de manière significative {a_(R.y)}, {st}."
+    else:
+        modeles = [
+            f"Par ailleurs, l'association entre {x} et {R.y} est également significative, {st}.",
+            f"{majuscule(x)} ressort aussi comme un facteur significativement associé {a_(R.y)}, "
+            f"{st}.",
+            f"Il en va de même pour {x}, {st}.",
+            f"Nous notons également une association significative entre {x} et {R.y}, {st}.",
+            f"De plus, {x} {est(x)} {accord('lié', x)} de manière significative {a_(R.y)}, {st}.",
+        ]
+        head = modeles[(k - 1) % len(modeles)]
+    head += " " + _intensite(r.strength, k)
+    xinfo = R.ds.variables[r.x]
     if "crosstab" in r.details:
         ct = r.details["crosstab"]
         rp = ct.div(ct.sum(axis=1), axis=0)
         from .design import event_level_for
-        target = event_level_for([str(c) for c in rp.columns]) if yinfo.kind == "binaire" else \
+        binary = yinfo.kind == "binaire"
+        target = event_level_for([str(c) for c in rp.columns]) if binary else \
             rp.columns[int(np.argmax(rp.var().to_numpy()))]
         stable = ct.sum(axis=1) >= 10  # pas de proportion calculée sur moins de 10 observations dans le texte
         if stable.sum() >= 2:
             col = rp.loc[stable, target]
-            hi, lo = col.idxmax(), col.idxmin()
-            head += (f" La part de « {ylab} : {target} » varie de {fmt.pct(col[lo])} pour la modalité « {lo} » à "
-                     f"{fmt.pct(col[hi])} pour la modalité « {hi} ».")
+            hi, lo = str(col.idxmax()), str(col.idxmin())
+            quoi = R.indicateur() if binary else f"la part de la modalité {guillemets(str(target))} {de(R.y)}"
+            if k % 2 == 0:
+                head += (f" En effet, {quoi} passe de {fmt.pct(col[lo])} {R.chez(r.x, lo)} à {fmt.pct(col[hi])} "
+                         f"{R.chez(r.x, hi, premier=False)}.")
+            else:
+                head += (f" {majuscule(quoi)} s'établit à {fmt.pct(col[hi])} {R.chez(r.x, hi)}, contre "
+                         f"{fmt.pct(col[lo])} {R.chez(r.x, lo, premier=False)}.")
+            if xinfo.kind == "ordinale" and stable.all() and len(col) >= 3:
+                d = np.diff(col.to_numpy())
+                if (d > 0).all() or (d < 0).all():
+                    if k % 2 == 0:
+                        sens = "augmente" if (d > 0).all() else "diminue"
+                        head += f" Nous pouvons donc dire que {quoi} {sens} avec {x}."
+                    else:
+                        sens = "croît" if (d > 0).all() else "décroît"
+                        head += f" Ainsi, {quoi} {sens} régulièrement avec {x}."
         if "or" in r.details and r.test == "Exact de Fisher":
-            head += (f" Le rapport de cotes vaut {fmt.num(r.details['or'])} (IC à 95 % "
-                     f"{fmt.ci(r.details['or_lo'], r.details['or_hi'])}).")
+            head += (f" Le rapport de cotes s'établit à {fmt.num(r.details['or'])}, avec un intervalle de confiance à "
+                     f"95 % de {fmt.ci(r.details['or_lo'], r.details['or_hi'])}.")
     elif "groupes" in r.details:
         g = r.details["groupes"]
         key = "moyenne" if r.details.get("parametrique") else "mediane"
-        word = "moyenne" if key == "moyenne" else "médiane"
-        hi = max(g, key=lambda k: g[k][key])
-        lo = min(g, key=lambda k: g[k][key])
-        what = f"« {lab} »" if y_cat else f"« {ylab} »"
-        grp = f"« {ylab} »" if y_cat else f"« {lab} »"
-        head += (f" La {word} de {what} est de {fmt.num(g[hi][key])} pour la modalité « {hi} » de {grp}, contre "
-                 f"{fmt.num(g[lo][key])} pour « {lo} ».")
+        mot = "La moyenne" if key == "moyenne" else "La médiane"
+        hi = max(g, key=lambda kk: g[kk][key])
+        lo = min(g, key=lambda kk: g[kk][key])
+        if y_cat:
+            pr = pronom(R.y)
+            lorsque = "lorsqu'" + pr if pr[0] in "ei" else "lorsque " + pr
+            head += (f" {mot} {de(x)} s'établit à {fmt.num(g[hi][key])} lorsque {R.y} {est(R.y)} "
+                     f"{guillemets(hi)}, contre {fmt.num(g[lo][key])} {lorsque} {est(R.y)} {guillemets(lo)}.")
+        else:
+            head += (f" {mot} {de(R.y)} s'établit à {fmt.num(g[hi][key])} {R.chez(r.x, hi)}, contre "
+                     f"{fmt.num(g[lo][key])} {R.chez(r.x, lo, premier=False)}.")
     elif r.effect_label:
-        sens = "positive" if r.effect > 0 else "négative"
-        head += f" La relation est {sens} : « {ylab} » tend à {'augmenter' if r.effect > 0 else 'diminuer'} " \
-                f"lorsque « {lab} » augmente."
+        adj = accord("élevé", R.y)
+        if r.effect > 0:
+            head += f" Ainsi, plus {x} {est(x)} {accord('élevé', x)}, plus {R.y} tend à être {adj}."
+        else:
+            head += f" Ainsi, plus {x} {est(x)} {accord('élevé', x)}, moins {R.y} tend à être {adj}."
     return head
