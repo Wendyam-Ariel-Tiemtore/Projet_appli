@@ -169,7 +169,7 @@ def _clean_frame(df: pd.DataFrame) -> pd.DataFrame:
     used: set[str] = set()
     df.columns = [_clean_name(c, used) for c in df.columns]
     for c in df.columns:
-        if df[c].dtype == object:
+        if df[c].dtype == object or pd.api.types.is_string_dtype(df[c].dtype):
             s = df[c].astype("string").str.strip()
             s = s.replace({"": pd.NA, "NA": pd.NA, "N/A": pd.NA, "na": pd.NA, "NaN": pd.NA, ".": pd.NA,
                            "NSP": pd.NA, "nsp": pd.NA})

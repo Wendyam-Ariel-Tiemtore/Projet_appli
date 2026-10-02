@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    ignore:
+      # lifelines exige pandas < 3 : la version majeure 3 sera adoptée quand lifelines la prendra en charge
+      - dependency-name: "pandas"
+        update-types: ["version-update:semver-major"]
     groups:
       scientifique:
         patterns: ["numpy", "scipy", "pandas", "statsmodels", "scikit-learn", "matplotlib", "lifelines"]
