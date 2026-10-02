@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block titre %}Connexion{% endblock %}
+{% block largeur %}etroit{% endblock %}
+{% block contenu %}
+<h1>Connexion</h1>
+<p class="chapeau">Analyses statistiques et rédaction académique, sur votre machine.</p>
+{% include "_erreurs.html" %}
+<form method="post" action="/connexion">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="username">Identifiant</label>
+  <input id="username" name="username" type="text" required maxlength="64" value="{{ username or '' }}" autocomplete="username">
+  <label for="password">Mot de passe</label>
+  <input id="password" name="password" type="password" required maxlength="256" autocomplete="current-password">
+  <div class="actions">
+    <button class="bouton" type="submit">Se connecter</button>
+    {% if settings.registration_open %}<a href="/inscription">Créer un compte</a>{% endif %}
+  </div>
+</form>
+{% endblock %}

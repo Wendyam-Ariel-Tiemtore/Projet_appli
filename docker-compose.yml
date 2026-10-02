@@ -1,0 +1,65 @@
+# Déploiement local sécurisé : l'application n'est joignable qu'à travers le proxy HTTPS (Caddy).
+# Lancement : docker compose up -d --build        (modèle local en plus : --profile ia-locale)
+name: analyste-academique
+
+services:
+  app:
+    build: .
+    image: analyste-academique:1.0.0
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ANALYSTE_DATA_DIR: /donnees
+      ANALYSTE_MASTER_KEY_FILE: /donnees/secrets/cle_maitresse
+      ANALYSTE_OLLAMA_URL: ${ANALYSTE_OLLAMA_URL:-http://ollama:11434}
+      ANALYSTE_ALLOWED_HOSTS: '${ANALYSTE_ALLOWED_HOSTS:-["localhost","127.0.0.1"]}'
+    volumes:
+      - donnees:/donnees
+    tmpfs:
+      - /tmp:size=2g,mode=1777
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 6g
+    expose: ["8000"]
+    networks: [reseau]
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      # Par défaut, uniquement sur cette machine. Pour un serveur : BIND_ADDRESS=0.0.0.0 dans .env
+      - "${BIND_ADDRESS:-127.0.0.1}:443:443"
+      - "${BIND_ADDRESS:-127.0.0.1}:80:80"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+      TLS_MODE: ${TLS_MODE:-internal}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    networks: [reseau]
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ia-locale"]
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    networks: [reseau]
+
+networks:
+  reseau: {}
+
+volumes:
+  donnees: {}
+  caddy_data: {}
+  caddy_config: {}
+  ollama: {}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block titre %}Demande — {{ projet.nom }}{% endblock %}
+{% block largeur %}moyen{% endblock %}
+{% block contenu %}
+{% include "_parcours.html" %}
+<h1>Préciser la demande</h1>
+<p class="chapeau">Ce que vous écrivez ici sert à rédiger l'introduction, à cadrer la discussion et à chercher la littérature. Rien n'est inventé : ce que l'application ne peut pas savoir est signalé « à compléter par l'auteur » dans le document.</p>
+<form method="post" action="/projets/{{ projet.id }}/demande">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+
+  <fieldset>
+    <legend>Type de document</legend>
+    {% set descriptions = {
+      "article": "Format IMRaD : résumé, introduction, méthodes, résultats, discussion. Deux figures au plus par section.",
+      "memoire": "Introduction générale, cadre théorique, méthodologie, puis un chapitre par niveau d'analyse.",
+      "rapport_stage": "Avec les parties propres au stage (structure d'accueil, apport du stage) à compléter.",
+      "rapport_etude": "Résumé exécutif, méthodologie, résultats, conclusions et recommandations.",
+      "note_synthese": "Messages clés et tableaux principaux, en quelques pages."} %}
+    {% for k, v in DOC_TYPES.items() %}
+    <label class="choix"><input type="radio" name="doc_type" value="{{ k }}" {% if spec.doc_type == k %}checked{% endif %}>
+      <span><strong class="titre">{{ v }}</strong><span class="aide">{{ descriptions[k] }}</span></span></label>
+    {% endfor %}
+  </fieldset>
+
+  <fieldset>
+    <legend>Page de garde</legend>
+    <label for="title">Titre</label>
+    <input id="title" name="title" type="text" maxlength="300" required value="{{ spec.title }}">
+    <div class="grille-2">
+      <div><label for="author">Auteur</label><input id="author" name="author" type="text" maxlength="200" value="{{ spec.author }}"></div>
+      <div><label for="supervisor">Direction ou encadrement</label><input id="supervisor" name="supervisor" type="text" maxlength="200" value="{{ spec.supervisor }}"></div>
+      <div><label for="institution">Institution</label><input id="institution" name="institution" type="text" maxlength="200" value="{{ spec.institution }}"></div>
+      <div><label for="date_text">Date</label><input id="date_text" name="date_text" type="text" maxlength="60" value="{{ spec.date_text }}" placeholder="Octobre 2026"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Cadrage scientifique</legend>
+    <label for="context">Contexte et justification <span class="aide">Quelques paragraphes : le problème, pourquoi il compte, ce que l'on sait déjà. Une ligne vide sépare les paragraphes.</span></label>
+    <textarea id="context" name="context" maxlength="6000">{{ spec.context }}</textarea>
+    <label for="problematique">Question de recherche</label>
+    <input id="problematique" name="problematique" type="text" maxlength="1500" value="{{ spec.problematique }}">
+    <label for="objectives">Objectifs <span class="aide">Un par ligne ; le premier est l'objectif général.</span></label>
+    <textarea id="objectives" name="objectives">{{ spec.objectives | join("\n") }}</textarea>
+    <label for="hypotheses">Hypothèses <span class="aide">Une par ligne, formulées en termes d'association.</span></label>
+    <textarea id="hypotheses" name="hypotheses">{{ spec.hypotheses | join("\n") }}</textarea>
+    <label for="data_description">Source des données <span class="aide">Enquête, population, période, mode de collecte, plan d'échantillonnage.</span></label>
+    <textarea id="data_description" name="data_description" maxlength="4000">{{ spec.data_description }}</textarea>
+  </fieldset>
+
+  <fieldset>
+    <legend>Analyses</legend>
+    <label class="choix"><input type="checkbox" name="factorial" {% if cfg.factorial %}checked{% endif %}>
+      <span><strong class="titre">Analyses factorielles et typologie</strong><span class="aide">ACP, ACM et classification lorsque au moins trois variables du même type sont disponibles.</span></span></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Revue de littérature</legend>
+    <label for="keywords">Mots-clés <span class="aide">Séparés par des virgules, en français ou en anglais.</span></label>
+    <input id="keywords" name="keywords" type="text" maxlength="600" value="{{ spec.keywords | join(', ') }}">
+    {% if settings.allow_literature %}
+    <label class="choix"><input type="checkbox" name="literature" {% if cfg.literature %}checked{% endif %}>
+      <span><strong class="titre">Rechercher la littérature dans OpenAlex</strong><span class="aide">Seule cette requête sera envoyée : <span class="code" id="apercu-requete">{{ spec.keywords | join(" ") }}</span>. Vos données et vos résultats ne sont jamais transmis.</span></span></label>
+    <label for="year_from">Publications à partir de l'année (facultatif)</label>
+    <input id="year_from" name="year_from" type="number" min="1900" max="2100" value="{{ cfg.year_from or '' }}">
+    {% else %}
+    <p class="aide">La recherche bibliographique en ligne est désactivée par l'administrateur.</p>
+    {% endif %}
+  </fieldset>
+
+  <fieldset>
+    <legend>Rédaction</legend>
+    <label class="choix"><input type="radio" name="llm" value="aucun" {% if cfg.llm == "aucun" %}checked{% endif %}>
+      <span><strong class="titre">Textes produits par les règles de l'application</strong><span class="aide">Aucun modèle de langage. Les résultats sont rédigés précisément ; introduction et discussion restent à compléter.</span></span></label>
+    <label class="choix"><input type="radio" name="llm" value="local" {% if cfg.llm == "local" %}checked{% endif %}>
+      <span><strong class="titre">Modèle de langage local (Ollama)</strong><span class="aide">Rédige introduction, résumé et discussion sans que rien ne quitte la machine. Modèle configuré : <span class="code">{{ settings.ollama_model }}</span>.</span></span></label>
+    {% if settings.allow_external_llm %}
+    <label class="choix"><input type="radio" name="llm" value="claude" {% if cfg.llm == "claude" %}checked{% endif %}>
+      <span><strong class="titre">Claude (API Anthropic)</strong><span class="aide">Rédaction de meilleure qualité. {% if not has_key %}Ajoutez d'abord votre clé d'API dans Paramètres.{% endif %}</span></span></label>
+    <div id="bloc-consentement" class="note" {% if cfg.llm != "claude" %}hidden{% endif %}>
+      <label class="choix"><input type="checkbox" name="consent_external" {% if cfg.consent_external %}checked{% endif %}>
+        <span>J'accepte que les <strong>résultats agrégés</strong> (paragraphes de résultats, intitulés des variables, texte de cadrage) soient envoyés à l'API d'Anthropic pour la rédaction. Les <strong>données individuelles</strong> ne sont jamais envoyées.</span></label>
+    </div>
+    {% endif %}
+    <label class="choix"><input type="checkbox" name="english_abstract" {% if spec.english_abstract %}checked{% endif %}>
+      <span><strong class="titre">Ajouter un résumé en anglais</strong><span class="aide">Uniquement avec un modèle de langage.</span></span></label>
+    <p class="aide">Tout texte rédigé par un modèle est vérifié automatiquement : un paragraphe contenant un nombre ou une référence absents des résultats est rejeté et remplacé.</p>
+  </fieldset>
+
+  <div class="actions"><button class="bouton" type="submit">Lancer l'analyse</button>
+    <a class="bouton bouton--discret" href="/projets/{{ projet.id }}/variables">Revenir aux variables</a></div>
+</form>
+{% endblock %}

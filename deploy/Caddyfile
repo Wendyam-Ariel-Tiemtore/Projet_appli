@@ -1,0 +1,33 @@
+# Proxy HTTPS devant l'application.
+# - SITE_ADDRESS=localhost et TLS_MODE=internal : certificat d'une autorité locale (usage sur la machine).
+# - SITE_ADDRESS=analyse.mon-domaine.org et TLS_MODE=adresse@mail : certificat Let's Encrypt automatique.
+{
+	admin off
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$SITE_ADDRESS:localhost} {
+	tls {$TLS_MODE:internal}
+	encode zstd gzip
+	request_body {
+		max_size 64MB
+	}
+	header {
+		-Server
+		-Via
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+	}
+	reverse_proxy app:8000 {
+		header_up X-Forwarded-Proto https
+		transport http {
+			response_header_timeout 120s
+		}
+	}
+	# Caddy masque par défaut les en-têtes sensibles (Cookie, Authorization) dans ses journaux.
+	log {
+		output stdout
+		format console
+	}
+}

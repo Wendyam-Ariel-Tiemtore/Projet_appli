@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block titre %}Analyste académique{% endblock %} — Analyste académique</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+<a class="sr-only" href="#contenu">Aller au contenu</a>
+<header class="entete">
+  <div class="entete__interieur">
+    <a class="marque" href="/">Analyste <span>académique</span></a>
+    <nav class="nav" aria-label="Navigation principale">
+      {% if user %}
+        <a href="/">Mes analyses</a>
+        <a href="/projets/nouveau">Nouvelle analyse</a>
+        <a href="/methodologie">Méthodologie</a>
+        <a href="/aide">Aide</a>
+        <a href="/parametres">Paramètres</a>
+        {% if user.is_admin %}<a href="/admin">Administration</a>{% endif %}
+        <form method="post" action="/deconnexion">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="lien-bouton" type="submit">Se déconnecter ({{ user.username }})</button>
+        </form>
+      {% else %}
+        <a href="/methodologie">Méthodologie</a>
+        <a href="/aide">Aide</a>
+        <a href="/confidentialite">Confidentialité</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+<main id="contenu" class="{% block largeur %}{% endblock %}">
+{% block contenu %}{% endblock %}
+</main>
+<footer class="pied">
+  <div class="pied__interieur">
+    <span>Application locale : vos données restent sur cette machine.</span>
+    <a href="/confidentialite">Confidentialité</a>
+    <a href="/securite">Sécurité</a>
+    <a href="/methodologie">Guide méthodologique</a>
+  </div>
+</footer>
+<script src="/static/app.js" defer></script>
+</body>
+</html>

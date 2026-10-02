@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block titre %}Paramètres{% endblock %}
+{% block largeur %}moyen{% endblock %}
+{% block contenu %}
+<h1>Paramètres du compte</h1>
+{% include "_erreurs.html" %}
+
+<h2>Mot de passe</h2>
+<form method="post" action="/parametres/mot-de-passe">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="old">Mot de passe actuel</label><input id="old" name="old" type="password" required autocomplete="current-password">
+  <div class="grille-2">
+    <div><label for="new">Nouveau mot de passe</label><input id="new" name="new" type="password" required minlength="12" autocomplete="new-password"></div>
+    <div><label for="new2">Confirmer</label><input id="new2" name="new2" type="password" required minlength="12" autocomplete="new-password"></div>
+  </div>
+  <p class="aide">Toutes vos sessions seront fermées après le changement.</p>
+  <div class="actions"><button class="bouton" type="submit">Changer le mot de passe</button></div>
+</form>
+
+{% if settings.allow_external_llm %}
+<h2>Clé d'API Claude (facultatif)</h2>
+<p>Nécessaire uniquement pour la rédaction par Claude. La clé est chiffrée sur cette machine et n'est jamais affichée à nouveau.{% if has_key %} Une clé est enregistrée.{% endif %}</p>
+<form method="post" action="/parametres/cle-api">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="cle">Clé d'API</label><input id="cle" name="cle" type="password" autocomplete="off" placeholder="sk-ant-…">
+  <div class="actions">
+    <button class="bouton" type="submit" name="action" value="enregistrer">Enregistrer la clé</button>
+    {% if has_key %}<button class="bouton bouton--discret" type="submit" name="action" value="supprimer">Retirer la clé</button>{% endif %}
+  </div>
+</form>
+{% endif %}
+
+<h2>Supprimer mon compte</h2>
+<p>Tous vos projets, fichiers et résultats sont détruits définitivement.</p>
+<form method="post" action="/parametres/supprimer-compte" data-confirmer="Supprimer définitivement votre compte et tous vos projets ?">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="password">Mot de passe</label><input id="password" name="password" type="password" required autocomplete="current-password">
+  <div class="actions"><button class="bouton bouton--danger" type="submit">Supprimer mon compte</button></div>
+</form>
+{% endblock %}

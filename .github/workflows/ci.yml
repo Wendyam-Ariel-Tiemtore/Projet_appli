@@ -1,0 +1,59 @@
+name: Intégration continue
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualite-et-tests:
+    name: Tests, analyse statique et audit des dépendances
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Installation
+        run: pip install -r requirements-dev.txt
+      - name: Style et erreurs courantes (ruff)
+        run: ruff check .
+      - name: Analyse de sécurité du code (bandit)
+        run: bandit -q -r analyste -c pyproject.toml
+      - name: Vulnérabilités connues des dépendances (pip-audit)
+        run: pip-audit -r requirements.txt --progress-spinner off
+      - name: Tests automatisés
+        run: pytest -q
+
+  image-docker:
+    name: Construction et démarrage de l'image
+    needs: qualite-et-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construction
+        run: docker build -t analyste-academique:ci .
+      - name: Démarrage durci et contrôle de santé
+        run: |
+          docker run -d --name aa -p 127.0.0.1:8000:8000 --read-only --tmpfs /tmp:size=512m \
+            --cap-drop ALL --security-opt no-new-privileges:true -v aa_donnees:/donnees \
+            -e ANALYSTE_ALLOWED_HOSTS='["localhost","127.0.0.1"]' analyste-academique:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/sante; then exit 0; fi
+            sleep 2
+          done
+          docker logs aa
+          exit 1
+      - name: En-têtes de sécurité
+        run: |
+          curl -sS -o /dev/null -D headers.txt http://127.0.0.1:8000/installation
+          cat headers.txt
+          grep -qi "^content-security-policy:" headers.txt
+          grep -qi "^x-frame-options: DENY" headers.txt
+          grep -qi "^strict-transport-security:" headers.txt

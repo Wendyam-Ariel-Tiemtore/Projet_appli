@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block titre %}Variables — {{ projet.nom }}{% endblock %}
+{% block contenu %}
+{% include "_parcours.html" %}
+<h1>Vérifier les variables</h1>
+<p class="chapeau">{{ n }} observations et {{ rows|length }} variables. Le type détecté commande le choix des tests : vérifiez-le, donnez à chaque variable un intitulé lisible (il apparaîtra dans les tableaux) et choisissez son rôle selon votre cadre conceptuel. Les variables laissées sur « Ne pas utiliser » sont écartées.</p>
+{% if rows | selectattr("identifier") | list %}
+<div class="note"><p>Des identifiants personnels ont été repérés (lignes surlignées). Par défaut, ils sont supprimés avant toute analyse. Une variable de regroupement nominative peut être remplacée par un code.</p></div>
+{% endif %}
+<form method="post" action="/projets/{{ projet.id }}/variables">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="tableau-conteneur">
+<table class="variables">
+  <thead><tr>
+    <th scope="col">Variable</th><th scope="col">Intitulé</th><th scope="col">Type</th><th scope="col">Rôle</th>
+    <th scope="col">Référence</th><th scope="col">Bloc</th><th scope="col">Échelle</th>
+  </tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr class="{% if r.identifier %}ligne-identifiant{% endif %}">
+    <td>
+      <span class="code">{{ r.name }}</span>
+      <div class="modalites">{{ r.n_valid }} valides{% if r.n_missing %}, {{ r.n_missing }} manquantes{% endif %}{% if r.reason %} — {{ r.reason }}{% endif %}</div>
+      {% if r.categories and r.kind in ["binaire", "nominale", "ordinale"] %}<div class="modalites">Modalités : {{ r.categories[:8] | join(", ") }}{% if r.categories|length > 8 %}…{% endif %}</div>{% endif %}
+      {% if r.identifier %}
+        <label class="sr-only" for="priv__{{ r.name }}">Confidentialité de {{ r.name }}</label>
+        <select id="priv__{{ r.name }}" name="priv__{{ r.name }}" class="espace-haut">
+          {% for v, l in PRIVACY %}<option value="{{ v }}" {% if r.privacy == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select>
+      {% endif %}
+    </td>
+    <td><label class="sr-only" for="label__{{ r.name }}">Intitulé</label>
+      <input id="label__{{ r.name }}" name="label__{{ r.name }}" type="text" maxlength="120" value="{{ r.label }}"></td>
+    <td><label class="sr-only" for="kind__{{ r.name }}">Type</label>
+      <select id="kind__{{ r.name }}" name="kind__{{ r.name }}">
+        {% for k in KINDS %}<option value="{{ k }}" {% if r.kind == k %}selected{% endif %}>{{ k }}</option>{% endfor %}
+      </select></td>
+    <td><label class="sr-only" for="role__{{ r.name }}">Rôle</label>
+      <select id="role__{{ r.name }}" name="role__{{ r.name }}">
+        {% for v, l in ROLES %}<option value="{{ v }}" {% if r.role == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select></td>
+    <td>{% if r.categories and r.kind in ["binaire", "nominale", "ordinale"] %}
+      <label class="sr-only" for="ref__{{ r.name }}">Modalité de référence</label>
+      <select id="ref__{{ r.name }}" name="ref__{{ r.name }}">
+        <option value="">Automatique</option>
+        {% for c in r.categories %}<option value="{{ c }}" {% if r.reference == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>{% else %}<span class="modalites">–</span>{% endif %}</td>
+    <td><label class="sr-only" for="bloc__{{ r.name }}">Bloc</label>
+      <select id="bloc__{{ r.name }}" name="bloc__{{ r.name }}">
+        <option value="">–</option>{% for b in range(1, 6) %}<option value="{{ b }}" {% if r.bloc == b|string %}selected{% endif %}>{{ b }}</option>{% endfor %}
+      </select></td>
+    <td><label class="sr-only" for="echelle__{{ r.name }}">Échelle</label>
+      <input id="echelle__{{ r.name }}" name="echelle__{{ r.name }}" type="text" maxlength="60" value="{{ r.echelle }}" placeholder="–"></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>Options de modélisation</h2>
+<div class="grille-2">
+  <div>
+    <label for="event_level">Modalité d'intérêt de la variable dépendante <span class="aide">Pour une variable binaire : la modalité dont on modélise la probabilité (« Oui », « 1 »…). Laisser vide pour le choix automatique.</span></label>
+    <input id="event_level" name="event_level" type="text" maxlength="80" value="{{ cfg.event_level or '' }}">
+  </div>
+  <div>
+    <label for="random_slope">Pente aléatoire (multi-niveaux, variable dépendante continue) <span class="aide">Teste si l'association d'une variable individuelle varie d'un contexte à l'autre.</span></label>
+    <select id="random_slope" name="random_slope">
+      <option value="">Aucune</option>
+      {% for r in rows %}{% if r.kind in ["continue", "comptage"] %}<option value="{{ r.name }}" {% if cfg.random_slope == r.name %}selected{% endif %}>{{ r.label }}</option>{% endif %}{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="survival_group">Groupes à comparer (analyse de survie) <span class="aide">Courbes de Kaplan-Meier et test du log-rank selon cette variable.</span></label>
+    <select id="survival_group" name="survival_group">
+      <option value="">Aucun</option>
+      {% for r in rows %}{% if r.kind in ["binaire", "nominale", "ordinale"] %}<option value="{{ r.name }}" {% if cfg.survival_group == r.name %}selected{% endif %}>{{ r.label }}</option>{% endif %}{% endfor %}
+    </select>
+  </div>
+</div>
+<div class="note">
+  <p><strong>Bloc</strong> : numérotez les variables explicatives (1, 2, 3…) pour estimer des modèles emboîtés, comme dans les mémoires de démographie (caractéristiques sociodémographiques, puis économiques, puis contextuelles). <strong>Échelle</strong> : donnez le même nom aux items d'une échelle pour calculer son α de Cronbach. <strong>Contexte</strong> : choisir un identifiant de contexte (grappe, village, école) déclenche l'analyse multi-niveaux.</p>
+</div>
+<div class="actions"><button class="bouton" type="submit">Enregistrer et préciser la demande</button></div>
+</form>
+{% endblock %}

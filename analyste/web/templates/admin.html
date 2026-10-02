@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block titre %}Administration{% endblock %}
+{% block contenu %}
+<h1>Administration</h1>
+<p class="chapeau">L'administrateur gère les comptes. Il n'a accès ni aux fichiers ni aux résultats des autres utilisateurs.</p>
+<div class="tableau-conteneur">
+<table>
+  <thead><tr><th>Identifiant</th><th>Rôle</th><th class="nombre">Projets</th><th>Créé le</th><th>État</th><th></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.username }}</td><td>{{ "Administrateur" if u.is_admin else "Utilisateur" }}</td>
+    <td class="nombre">{{ counts[u.id] }}</td><td>{{ u.created_at.strftime("%d/%m/%Y") }}</td>
+    <td>{{ "Verrouillé" if u.locked_until else "Actif" }}</td>
+    <td>{% if u.id != user.id %}
+      <form method="post" action="/admin/utilisateurs/{{ u.id }}/supprimer" data-confirmer="Supprimer ce compte et tous ses projets ?">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><button class="lien-bouton" type="submit">Supprimer</button>
+      </form>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<h2>Créer un compte</h2>
+<form method="post" action="/admin/utilisateurs" autocomplete="off">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="grille-2">
+    <div><label for="username">Identifiant</label><input id="username" name="username" type="text" required minlength="3" maxlength="32"></div>
+    <div><label for="password">Mot de passe initial</label><input id="password" name="password" type="password" required minlength="12" autocomplete="new-password"></div>
+  </div>
+  <label class="choix"><input type="checkbox" name="is_admin"><span>Administrateur</span></label>
+  <p class="aide">Communiquez le mot de passe initial par un canal sûr ; l'utilisateur le change dans ses paramètres.</p>
+  <div class="actions"><button class="bouton" type="submit">Créer le compte</button></div>
+</form>
+<h2>Réglages</h2>
+<p>Les réglages (inscriptions ouvertes, durée de conservation, rédaction externe autorisée, taille maximale des fichiers) se modifient dans le fichier <span class="code">.env</span> puis en redémarrant l'application. Voir le guide de déploiement.</p>
+<ul>
+  <li>Inscriptions libres : {{ "ouvertes" if settings.registration_open else "fermées" }}</li>
+  <li>Conservation des projets : {{ settings.retention_days }} jours</li>
+  <li>Rédaction par un service externe : {{ "autorisée" if settings.allow_external_llm else "interdite" }}</li>
+  <li>Recherche bibliographique en ligne : {{ "autorisée" if settings.allow_literature else "interdite" }}</li>
+</ul>
+{% endblock %}

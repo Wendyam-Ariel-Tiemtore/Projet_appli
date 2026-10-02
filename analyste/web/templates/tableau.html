@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titre %}Mes analyses{% endblock %}
+{% block contenu %}
+<h1>Mes analyses</h1>
+<p class="chapeau">Chaque analyse part d'un fichier de données et aboutit à un document Word structuré, accompagné de ses tableaux et figures. Les projets sont supprimés automatiquement après {{ settings.retention_days }} jours sans activité.</p>
+{% if projets %}
+<div class="actions actions--haut"><a class="bouton" href="/projets/nouveau">Nouvelle analyse</a></div>
+<div class="tableau-conteneur">
+<table>
+  <thead><tr><th>Projet</th><th>Fichier</th><th>État</th><th>Dernière modification</th></tr></thead>
+  <tbody>
+  {% for p in projets %}
+  <tr>
+    <td><a href="{% if p.statut in ['importe'] %}/projets/{{ p.id }}/variables{% elif p.statut == 'configure' %}/projets/{{ p.id }}/demande{% else %}/projets/{{ p.id }}{% endif %}">{{ p.nom }}</a></td>
+    <td class="code">{{ p.fichier }}</td>
+    <td><span class="statut statut--{{ p.statut }}">{{ {"importe": "Variables à vérifier", "configure": "Demande à préciser", "en_cours": "Analyse en cours (" ~ p.progression ~ " %)", "termine": "Document prêt", "erreur": "Échec"}[p.statut] }}</span></td>
+    <td>{{ p.maj.strftime("%d/%m/%Y %H:%M") }} (UTC)</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="vide">
+  <h2 class="sans-marge">Commencez par déposer un fichier de données</h2>
+  <p>Formats acceptés : CSV, Excel (.xlsx), SPSS (.sav) et Stata (.dta). L'application détecte le type de chaque variable et repère les identifiants personnels avant toute analyse.</p>
+  <div class="actions"><a class="bouton" href="/projets/nouveau">Déposer un fichier</a></div>
+</div>
+{% endif %}
+{% endblock %}

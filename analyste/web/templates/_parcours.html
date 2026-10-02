@@ -1,0 +1,11 @@
+<ol class="parcours" aria-label="Étapes de l'analyse">
+  {% set noms = ["Données", "Variables", "Demande", "Document"] %}
+  {% set liens = ["", "/projets/" ~ projet.id ~ "/variables", "/projets/" ~ projet.id ~ "/demande", "/projets/" ~ projet.id] %}
+  {% for nom in noms %}
+    {% set i = loop.index %}
+    <li class="{% if i < etape %}fait{% elif i == etape %}courant{% endif %}" {% if i == etape %}aria-current="step"{% endif %}>
+      {% if i > 1 and i < etape %}<a href="{{ liens[loop.index0] }}"><span>{{ i }}. {{ nom }}</span></a>
+      {% else %}<span>{{ i }}. {{ nom }}</span>{% endif %}
+    </li>
+  {% endfor %}
+</ol>

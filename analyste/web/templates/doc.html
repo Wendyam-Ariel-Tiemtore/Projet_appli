@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block titre %}{{ titre }}{% endblock %}
+{% block contenu %}
+<article class="doc">{{ contenu | safe }}</article>
+{% endblock %}

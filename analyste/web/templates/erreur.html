@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block titre %}Erreur{% endblock %}
+{% block largeur %}moyen{% endblock %}
+{% block contenu %}
+<h1>{% if code == 404 %}Page introuvable{% elif code == 403 %}Accès refusé{% elif code == 429 %}Trop de requêtes{% elif code == 400 %}Vérifiez votre saisie{% else %}Une erreur est survenue{% endif %}</h1>
+<div class="erreurs" role="alert"><p>{{ message }}</p></div>
+<div class="actions">
+  {% if retour %}<a class="bouton" href="{{ retour }}">Revenir au formulaire</a>{% endif %}
+  <a class="bouton bouton--discret" href="/">Retour à mes analyses</a>
+</div>
+{% endblock %}

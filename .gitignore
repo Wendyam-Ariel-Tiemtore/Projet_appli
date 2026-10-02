@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+donnees/
+sortie_demo/
+*.docx
+*.xlsx
+*.zip
+!examples/*.csv
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+*.log
+certs/

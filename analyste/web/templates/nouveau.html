@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titre %}Nouvelle analyse{% endblock %}
+{% block largeur %}moyen{% endblock %}
+{% block contenu %}
+{% set projet = {"id": ""} %}{% set etape = 1 %}
+{% include "_parcours.html" %}
+<h1>Déposer les données</h1>
+<p class="chapeau">Le fichier est chiffré dès sa réception et ne quitte jamais cette machine.</p>
+{% include "_erreurs.html" %}
+<form method="post" action="/projets/nouveau" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="nom">Nom du projet <span class="aide">Pour vous y retrouver : « Mémoire contraception », « Stage INSD »…</span></label>
+  <input id="nom" name="nom" type="text" maxlength="120" value="{{ nom or '' }}">
+  <label for="fichier">Fichier de données <span class="aide">Une ligne par observation, une colonne par variable, la première ligne contenant les noms. Taille maximale : {{ settings.max_upload_mb }} Mo.</span></label>
+  <input id="fichier" name="fichier" type="file" required accept=".csv,.tsv,.txt,.xlsx,.sav,.dta">
+  <div class="note">
+    <p>Avant de déposer, retirez si possible les noms, numéros de téléphone et adresses : ils sont inutiles à l'analyse. L'application les repère de toute façon et propose de les supprimer.</p>
+  </div>
+  <div class="actions"><button class="bouton" type="submit">Déposer et vérifier les variables</button></div>
+</form>
+{% endblock %}

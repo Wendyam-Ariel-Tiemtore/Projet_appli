@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block titre %}{{ projet.nom }}{% endblock %}
+{% block largeur %}moyen{% endblock %}
+{% block contenu %}
+{% include "_parcours.html" %}
+<h1>{{ projet.nom }}</h1>
+<p class="chapeau">Fichier <span class="code">{{ projet.fichier }}</span></p>
+
+{% if projet.statut == "en_cours" %}
+<div id="suivi" data-url="/projets/{{ projet.id }}/etat">
+  <label for="barre">Analyse en cours</label>
+  <progress id="barre" max="100" value="{{ projet.progression }}">{{ projet.progression }} %</progress>
+  <p id="message-etat" aria-live="polite">{{ projet.message }}</p>
+</div>
+<noscript><p>Rechargez la page pour suivre l'avancement.</p></noscript>
+{% elif projet.statut == "erreur" %}
+<div class="erreurs" role="alert"><p>{{ projet.message }}</p></div>
+<div class="actions"><a class="bouton" href="/projets/{{ projet.id }}/variables">Vérifier les variables</a></div>
+{% elif projet.statut == "termine" %}
+<h2>Documents produits</h2>
+<ul class="fichiers">
+  {% for f in fichiers %}
+  <li><span><a href="/projets/{{ projet.id }}/fichiers/{{ f.stockage }}">{{ f.libelle }}</a><br><span class="code">{{ f.nom }}</span></span>
+    <span class="poids">{{ (f.taille / 1024) | round(0) | int }} Ko</span></li>
+  {% endfor %}
+</ul>
+<div class="note">
+  <p>À l'ouverture dans Word, acceptez la mise à jour des champs pour générer le sommaire et les listes de tableaux. Les passages surlignés en jaune sont à compléter par vous : l'application n'invente ni contexte, ni littérature, ni interprétation qu'elle ne peut pas établir.</p>
+</div>
+{% if journal %}
+<h2>Rédaction assistée</h2>
+<ul>{% for j in journal %}<li>{{ j }}</li>{% endfor %}</ul>
+{% endif %}
+{% if requete %}<p class="aide">Requête bibliographique transmise : <span class="code">{{ requete }}</span></p>{% endif %}
+<div class="actions">
+  <a class="bouton" href="/projets/{{ projet.id }}/demande">Modifier la demande et relancer</a>
+  <a class="bouton bouton--discret" href="/projets/{{ projet.id }}/variables">Modifier les variables</a>
+</div>
+{% else %}
+<p>L'analyse n'a pas encore été lancée.</p>
+<div class="actions"><a class="bouton" href="/projets/{{ projet.id }}/demande">Préciser la demande</a></div>
+{% endif %}
+
+{% if projet.statut != "en_cours" %}
+<h2>Supprimer ce projet</h2>
+<p>Le fichier, les résultats et la clé de chiffrement du projet sont détruits. Cette action est définitive.</p>
+<form method="post" action="/projets/{{ projet.id }}/supprimer" data-confirmer="Supprimer définitivement ce projet et ses résultats ?">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <button class="bouton bouton--danger" type="submit">Supprimer le projet</button>
+</form>
+{% endif %}
+{% endblock %}
