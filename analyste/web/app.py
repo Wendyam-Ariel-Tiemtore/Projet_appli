@@ -28,6 +28,7 @@ from ..security.auth import COOKIE, USERNAME_RE, Auth, csrf_ok, password_problem
 from ..security.web import OriginCheck, RateLimiter, SecurityHeaders, UploadError, validate_upload
 from ..stats.audit import detect_identifiers
 from ..stats.io import KINDS, DataReadError
+from ..writing import presentation as presentation_opts
 from ..writing.composer import DOC_TYPES, RequestSpec
 from ..writing.style import avec_article
 
@@ -38,6 +39,15 @@ log = logging.getLogger("analyste")
 ROLES = [("ignorer", "Ne pas utiliser"), ("dependante", "Dépendante"), ("explicative", "Explicative"),
          ("niveau2", "Explicative de niveau 2"), ("contexte", "Identifiant du contexte"), ("poids", "Pondération"),
          ("duree", "Durée (survie)"), ("evenement", "Événement (survie)")]
+ANALYSES_LIBELLES = {
+    "bivarie": ("Analyse bivariée", "Un test adapté à chaque couple de variables, avec taille d'effet."),
+    "multivarie": ("Analyse multivariée", "Modèle choisi selon la variable dépendante : linéaire, logistique, "
+                                          "multinomial, ordonné ou de comptage."),
+    "multiniveau": ("Analyse multi-niveaux", "Si un identifiant de contexte a été déclaré (grappe, village, école)."),
+    "factorielles": ("Analyses factorielles et typologie", "ACP, ACM et classification lorsque au moins trois "
+                                                            "variables du même type sont disponibles."),
+    "survie": ("Analyse de survie", "Si une durée et un événement ont été déclarés."),
+}
 PRIVACY = [("supprimer", "Supprimer avant l'analyse"), ("pseudonymiser", "Remplacer par un code"),
            ("conserver", "Conserver")]
 
@@ -67,7 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     limiter = RateLimiter()
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     templates.env.globals.update(DOC_TYPES=DOC_TYPES, KINDS=KINDS, ROLES=ROLES, PRIVACY=PRIVACY,
-                                 settings=settings)
+                                 settings=settings, P=presentation_opts, ANALYSES_LIBELLES=ANALYSES_LIBELLES)
 
     app = FastAPI(title="Analyste académique", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(SecurityHeaders, https=settings.https)
@@ -404,8 +414,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         spec = store.dec(p, p.spec_enc, None) or RequestSpec(title=store.name(p)).__dict__
         cfg = AnalysisConfig.from_dict(store.dec(p, p.config_enc, {}))
         has_key = bool(c.user.api_key_enc) or bool(settings.anthropic_api_key)
+        pres = presentation_opts.PresentationSpec.from_dict(spec.get("presentation"))
         return render(request, "demande.html", c, projet={"id": pid, "nom": store.name(p), "statut": p.status},
-                      spec=spec, cfg=cfg, has_key=has_key, etape=3)
+                      spec=spec, cfg=cfg, pres=pres, has_key=has_key, etape=3)
 
     @app.post("/projets/{pid}/demande")
     async def demande_post(request: Request, pid: str):
@@ -430,13 +441,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             objectives=lines("objectives"), hypotheses=lines("hypotheses"),
             keywords=[k.strip()[:80] for k in str(form.get("keywords", "")).split(",") if k.strip()][:10],
             english_abstract=form.get("english_abstract") == "on",
-            style_sample=str(form.get("style_sample", "")).strip()[:2500])
+            style_sample=str(form.get("style_sample", "")).strip()[:2500],
+            presentation=_presentation_depuis(form, lines))
         cfg = AnalysisConfig.from_dict(store.dec(p, p.config_enc, {}))
         cfg.literature = form.get("literature") == "on" and settings.allow_literature
         cfg.keywords = spec.keywords
         yf = str(form.get("year_from", "")).strip()
         cfg.year_from = int(yf) if yf.isdigit() and 1900 < int(yf) < 2100 else None
-        cfg.factorial = form.get("factorial") == "on"
+        from ..pipeline import ANALYSES
+        if form.get("analyses_presentes") == "1":  # cases décochées : absentes du formulaire
+            cfg.analyses = [a for a in form.getlist("analyses") if a in ANALYSES]
+            cfg.factorial = "factorielles" in cfg.analyses
+        alpha = str(form.get("alpha", "0.05"))
+        cfg.alpha = float(alpha) if alpha in ("0.01", "0.05", "0.10") else 0.05
+        corr = str(form.get("correction", "fdr_bh"))
+        cfg.correction = corr if corr in ("fdr_bh", "holm", "aucune") else "fdr_bh"
+        cfg.non_parametrique = form.get("approche") == "non_parametrique"
         llm = str(form.get("llm", "aucun"))
         cfg.llm = llm if llm in ("aucun", "local", "claude") else "aucun"
         cfg.consent_external = form.get("consent_external") == "on"
@@ -501,6 +521,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 data = store.read_result(p, stor)
                 db.audit("telechargement", user_id=c.user.id, project_id=pid, detail=f["type"])
                 media = {"docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                         "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
                          "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          "zip": "application/zip", "params": "application/json"}[f["type"]]
                 return Response(data, media_type=media, headers={
@@ -656,6 +677,20 @@ def _account_errors(username: str, password: str, password2: str) -> list[str]:
     if probs:
         errs.append("Le mot de passe doit comporter " + ", ".join(probs) + ".")
     return errs
+
+
+def _presentation_depuis(form, lines) -> dict:
+    """Options de la présentation saisies dans la page Demande, validées par PresentationSpec."""
+    d = {"active": form.get("pres_active") == "on", "notes": form.get("pres_notes") == "on",
+         "annexes": form.get("pres_annexes") == "on",
+         "contenus": [str(x) for x in form.getlist("pres_contenus")],
+         "recommandations": lines("pres_recommandations"),
+         "contact": str(form.get("pres_contact", "")).strip()[:120]}
+    for k in ("genre", "duree", "deroule", "niveau", "visuels", "theme", "format"):
+        v = str(form.get(f"pres_{k}", "")).strip()[:40]
+        if v:
+            d[k] = v
+    return presentation_opts.PresentationSpec.from_dict(d).__dict__
 
 
 def _role_of(name: str, cfg: AnalysisConfig) -> str | None:

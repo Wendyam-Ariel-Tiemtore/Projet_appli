@@ -19,6 +19,9 @@ Vos données restent sur votre machine : elles sont chiffrées sur le disque, ne
 | Survie | Kaplan-Meier, log-rank, modèle de Cox avec test des risques proportionnels |
 | Littérature | Recherche dans OpenAlex à partir de vos seuls mots-clés, regroupement thématique, tableaux de synthèse, références APA avec DOI |
 | Document | Word avec page de garde, résumé, sommaire, listes des tableaux et graphiques, chapitres selon le type de document, bibliographie, annexes de reproductibilité ; classeur Excel de tous les tableaux ; figures ; paramètres JSON |
+| Présentation (facultatif) | PowerPoint pour une soutenance, une communication scientifique, un séminaire, une restitution professionnelle ou un atelier : durée, déroulé, niveau de détail, graphiques ou tableaux, thème visuel, format 16:9 ou 4:3, notes de l'orateur rédigées, annexes techniques |
+
+Vous choisissez aussi vos méthodes : analyses à conduire, seuil de signification (1, 5 ou 10 %), correction pour les tests multiples (Benjamini et Hochberg, Holm ou aucune) et, si vous le souhaitez, des tests uniquement non paramétriques. Les textes sont rédigés dans le style des mémoires de statistique sociale (voir la section « Style de rédaction » du guide méthodologique).
 
 Les règles appliquées sont décrites dans le [guide méthodologique](docs/METHODOLOGIE.md).
 
@@ -78,14 +81,16 @@ Pour voir un document complet produit sur des données fictives :
 ```bash
 python scripts/generate_demo_data.py examples/enquete_demo.csv
 python scripts/demo_run.py sortie_demo memoire
+# avec une présentation : genre (soutenance, communication, seminaire, restitution, atelier), thème, format
+python scripts/demo_run.py sortie_demo memoire soutenance ardoise 16:9
 ```
 
 ## Utilisation
 
 1. **Déposer les données** : une ligne par observation, une colonne par variable, noms en première ligne.
 2. **Vérifier les variables** : type (binaire, nominale, ordinale, continue, comptage), intitulé lisible, rôle (dépendante, explicative, contextuelle, identifiant du contexte, pondération, durée, événement), modalité de référence, blocs pour les modèles emboîtés.
-3. **Préciser la demande** : type de document, page de garde, contexte, question de recherche, objectifs, hypothèses, mots-clés ; recherche bibliographique et mode de rédaction.
-4. **Télécharger** le document Word, le classeur Excel, les figures et les paramètres de reproductibilité.
+3. **Préciser la demande** : type de document, page de garde, contexte, question de recherche, objectifs, hypothèses, mots-clés ; méthodes d'analyse ; recherche bibliographique ; présentation orale ; mode de rédaction.
+4. **Télécharger** le document Word, la présentation PowerPoint si elle a été demandée, le classeur Excel, les figures et les paramètres de reproductibilité.
 
 À l'ouverture du document dans Word, acceptez la mise à jour des champs pour générer le sommaire.
 
@@ -126,7 +131,7 @@ flowchart LR
     W -. facultatif, local .-> O[Ollama]
     W -. facultatif, consentement .-> K[API Claude : résultats agrégés]
     A -. facultatif : mots-clés .-> X[OpenAlex / Crossref]
-    W --> R[Word, Excel, figures, paramètres]
+    W --> R[Word, PowerPoint, Excel, figures, paramètres]
 ```
 
 Organisation du code :
@@ -135,8 +140,8 @@ Organisation du code :
 analyste/
   stats/        lecture, typage, audit, descriptif, bivarié, modèles, multi-niveaux, factoriel, survie, figures
   literature/   OpenAlex et Crossref, synthèse thématique, références APA
-  writing/      composition du document, fournisseurs de modèles, garde-fous de rédaction
-  report/       génération Word et Excel
+  writing/      composition du document, plan des présentations, style, fournisseurs de modèles, garde-fous
+  report/       génération Word, PowerPoint et Excel
   security/     chiffrement, authentification, en-têtes, contrôle des fichiers
   web/          application, gabarits, feuille de style
 docs/           méthodologie, FAQ, confidentialité, sécurité, déploiement

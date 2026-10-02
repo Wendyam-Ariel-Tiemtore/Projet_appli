@@ -10,7 +10,7 @@ import pandas as pd
 
 from ..writing.phrases import Redac, accord, est, pcrit
 from ..writing.style import enumeration, genre, nombre, sans_article
-from . import figures, fmt
+from . import figures, fmt, seuil
 from .design import build_design
 from .io import Dataset, as_categorical
 from .results import Figure, Section, Table
@@ -74,9 +74,9 @@ def survival(ds: Dataset, time_var: str, event_var: str, explanatory: list[str],
         sec.tables.append(Table(title=f"Durées médianes selon {gx}", data=pd.DataFrame(rows),
                                 note=f"Le test du log-rank donne χ² = {fmt.num(lr.test_statistic)} ; "
                                      f"{fmt.p_phrase(lr.p_value)}."))
-        gtxt = (f"Les courbes de survie diffèrent {'significativement' if lr.p_value < 0.05 else 'peu'} selon {gx}, le "
+        gtxt = (f"Les courbes de survie diffèrent {'significativement' if seuil.significatif(lr.p_value) else 'peu'} selon {gx}, le "
                 f"test du log-rank donnant un khi-deux de {fmt.num(lr.test_statistic)} avec {pcrit(lr.p_value)}.")
-        if lr.p_value < 0.05 and len(meds) >= 2:
+        if seuil.significatif(lr.p_value) and len(meds) >= 2:
             lo, hi = min(meds, key=meds.get), max(meds, key=meds.get)
             gtxt += (f" La durée médiane passe en effet de {fmt.num(meds[lo])} {R.chez(group_var, lo)} à "
                      f"{fmt.num(meds[hi])} {R.chez(group_var, hi, premier=False)}.")
@@ -121,11 +121,11 @@ def survival(ds: Dataset, time_var: str, event_var: str, explanatory: list[str],
         sec.paragraphs.extend(paras)
         if len(ns) == 1:
             sec.paragraphs.append(f"En revanche, {ns[0]} n'{est(ns[0])} pas {accord('associé', ns[0])} de manière "
-                                  f"significative au risque de connaître {ev} au seuil de 5 %.")
+                                  f"significative au risque de connaître {ev} au seuil de {seuil.texte()}.")
         elif ns:
             masc = any(genre(sans_article(v)) == "m" for v in ns)
             sec.paragraphs.append(f"En revanche, ni {', ni '.join(ns)} ne sont {'associés' if masc else 'associées'} "
-                                  f"de manière significative au risque de connaître {ev} au seuil de 5 %.")
+                                  f"de manière significative au risque de connaître {ev} au seuil de {seuil.texte()}.")
         sec.key_points.extend(cles[:2])
         try:
             ph = proportional_hazard_test(cph, data, time_transform="rank")

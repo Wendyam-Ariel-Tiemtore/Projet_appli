@@ -26,6 +26,23 @@
   radios.forEach(function (r) { r.addEventListener("change", majConsent); });
   majConsent();
 
+  // Présentation : options visibles seulement si demandée ; valeurs par défaut propres à chaque type
+  var presActive = document.getElementById("pres_active");
+  var blocPres = document.getElementById("bloc-presentation");
+  if (presActive && blocPres) {
+    presActive.addEventListener("change", function () { blocPres.hidden = !presActive.checked; });
+  }
+  document.querySelectorAll('input[name="pres_genre"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      ["duree", "deroule", "niveau", "visuels"].forEach(function (k) {
+        var champ = document.getElementById("pres_" + k);
+        if (champ) champ.value = r.getAttribute("data-" + k);
+      });
+      var ann = document.getElementById("pres_annexes");
+      if (ann) ann.checked = r.getAttribute("data-annexes") === "oui";
+    });
+  });
+
   // Suivi de l'analyse en cours, sans rechargement complet
   var suivi = document.getElementById("suivi");
   if (suivi) {

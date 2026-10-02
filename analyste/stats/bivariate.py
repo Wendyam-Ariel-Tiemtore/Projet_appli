@@ -14,7 +14,7 @@ from statsmodels.stats.multitest import multipletests
 from ..writing.phrases import Redac, accord, est, pcrit, pronom
 from ..writing.style import a as a_
 from ..writing.style import de, enumeration, genre, guillemets, majuscule, nombre, sans_article
-from . import figures, fmt
+from . import figures, fmt, seuil
 from .io import Dataset, as_categorical
 from .results import Figure, Section, Table
 
@@ -249,7 +249,7 @@ def tukey_kramer(groups: dict[str, np.ndarray]) -> pd.DataFrame:
                          "Différence": tab["meandiff"].astype(float), "p ajustée": tab["p-adj"].astype(float)})
 
 
-def num_by_group(values: pd.Series, groups: pd.Series, var_name: str) -> TestResult:
+def num_by_group(values: pd.Series, groups: pd.Series, var_name: str, force_np: bool = False) -> TestResult:
     d = pd.DataFrame({"v": pd.to_numeric(values, errors="coerce"), "g": groups}).dropna()
     d["g"] = d["g"].cat.remove_unused_categories()
     gdict = {str(k): grp["v"].to_numpy(dtype=float) for k, grp in d.groupby("g", observed=True)}
@@ -259,7 +259,7 @@ def num_by_group(values: pd.Series, groups: pd.Series, var_name: str) -> TestRes
     if k < 2:
         return TestResult(var_name, "non calculable", "", np.nan, None, np.nan, "", np.nan, None, "", n,
                           reliability="un seul groupe observé")
-    ok = all(_group_ok(v) for v in gdict.values())
+    ok = all(_group_ok(v) for v in gdict.values()) and not force_np
     arrays = list(gdict.values())
     desc = {kk: {"n": len(v), "moyenne": float(v.mean()), "ecart_type": float(v.std(ddof=1)) if len(v) > 1 else np.nan,
                  "mediane": float(np.median(v)), "q1": float(np.percentile(v, 25)),
@@ -282,8 +282,8 @@ def num_by_group(values: pd.Series, groups: pd.Series, var_name: str) -> TestRes
             res = TestResult(var_name, "U de Mann-Whitney", "U", float(r.statistic), None, float(r.pvalue),
                              "Corrélation bisériale de rang", float(-rb), None, strength_rb(rb), n,
                              refs={"mann1947"},
-                             justification="normalité non vérifiée dans au moins un groupe de petit effectif ou "
-                                           "asymétrie marquée")
+                             justification="approche non paramétrique retenue par l'auteur" if force_np else
+                             "normalité non vérifiée dans au moins un groupe de petit effectif ou asymétrie marquée")
     else:
         lev = stats.levene(*arrays, center="median")
         if ok and lev.pvalue >= 0.05:
@@ -301,7 +301,7 @@ def num_by_group(values: pd.Series, groups: pd.Series, var_name: str) -> TestRes
                              justification="normalité et homogénéité des variances (Levene) vérifiées")
             res.details["eta2"] = float(eta2)
             res.details["df2"] = float(len(allv) - k)
-            if p < 0.05:
+            if seuil.significatif(p):
                 res.posthoc = tukey_kramer(gdict)
                 res.details["posthoc_nom"] = "Tukey-Kramer"
         elif ok:
@@ -312,7 +312,7 @@ def num_by_group(values: pd.Series, groups: pd.Series, var_name: str) -> TestRes
                              strength_eta(max(omega2, 0)), n, refs={"levene1960", "welch1947", "games1976"},
                              justification="normalité vérifiée mais variances hétérogènes (Levene)")
             res.details["df2"] = df2
-            if p < 0.05:
+            if seuil.significatif(p):
                 res.posthoc = games_howell(gdict)
                 res.details["posthoc_nom"] = "Games-Howell"
         else:
@@ -321,8 +321,9 @@ def num_by_group(values: pd.Series, groups: pd.Series, var_name: str) -> TestRes
             res = TestResult(var_name, "Kruskal-Wallis", "H", float(h), float(k - 1), float(p), "ε²", float(eps2),
                              None, strength_eta(eps2), n, refs={"kruskal1952", "dunn1964", "holm1979",
                                                                 "tomczak2014"},
-                             justification="normalité non vérifiée dans au moins un groupe")
-            if p < 0.05:
+                             justification="approche non paramétrique retenue par l'auteur" if force_np else
+                             "normalité non vérifiée dans au moins un groupe")
+            if seuil.significatif(p):
                 res.posthoc = dunn_holm(gdict)
                 res.details["posthoc_nom"] = "Dunn (ajustement de Holm)"
         res.details["levene_p"] = float(lev.pvalue)
@@ -331,7 +332,7 @@ def num_by_group(values: pd.Series, groups: pd.Series, var_name: str) -> TestRes
     return res
 
 
-def num_num(x: pd.Series, y: pd.Series) -> TestResult:
+def num_num(x: pd.Series, y: pd.Series, force_np: bool = False) -> TestResult:
     d = pd.DataFrame({"x": pd.to_numeric(x, errors="coerce"), "y": pd.to_numeric(y, errors="coerce")}).dropna()
     n = len(d)
     if n < 4 or d["x"].std() == 0 or d["y"].std() == 0:
@@ -339,13 +340,14 @@ def num_num(x: pd.Series, y: pd.Series) -> TestResult:
                           reliability="effectif ou variance insuffisants")
     pr = stats.pearsonr(d["x"], d["y"])
     sr = stats.spearmanr(d["x"], d["y"])
-    ok = _group_ok(d["x"].to_numpy()) and _group_ok(d["y"].to_numpy())
+    ok = _group_ok(d["x"].to_numpy()) and _group_ok(d["y"].to_numpy()) and not force_np
     if ok:
         r, p, name = float(pr.statistic), float(pr.pvalue), "r de Pearson"
         just = "distributions compatibles avec la normalité"
     else:
         r, p, name = float(sr.statistic), float(sr.pvalue), "ρ de Spearman"
-        just = "normalité non vérifiée ou asymétrie marquée : corrélation de rang"
+        just = ("approche non paramétrique retenue par l'auteur" if force_np else
+                "normalité non vérifiée ou asymétrie marquée : corrélation de rang")
     z = np.arctanh(np.clip(r, -0.999999, 0.999999))
     se = 1 / np.sqrt(n - 3) if n > 3 else np.nan
     ci = (float(np.tanh(z - 1.96 * se)), float(np.tanh(z + 1.96 * se)))
@@ -360,7 +362,16 @@ def num_num(x: pd.Series, y: pd.Series) -> TestResult:
 # Orchestration
 # ---------------------------------------------------------------------------
 
-def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, max_figures: int = 6) -> Section:
+CORRECTIONS = {"fdr_bh": ("p (FDR)", "procédure de Benjamini et Hochberg, 1995", "benjamini1995"),
+               "holm": ("p (Holm)", "procédure de Holm, 1979", "holm1979"),
+               "aucune": (None, "", None)}
+
+
+def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, max_figures: int = 6,
+              correction: str = "fdr_bh", non_parametrique: bool = False) -> Section:
+    correction = correction if correction in CORRECTIONS else "fdr_bh"
+    pcol, proc, ref_corr = CORRECTIONS[correction]
+    corrige = correction != "aucune"
     sec = Section(key="bivarie", title="Analyse bivariée : facteurs associés", level=2)
     yinfo = ds.variables[outcome]
     ylab = yinfo.label
@@ -383,10 +394,10 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
                 y_ord = yinfo.kind == "ordinale" or (yinfo.kind == "binaire" and info.kind == "ordinale")
                 r = cat_cat(xs, ys, x_ord, y_ord)
             else:
-                r = num_by_group(ys, xs, col)
+                r = num_by_group(ys, xs, col, non_parametrique)
         elif info.kind in NUM_KINDS:
             xs = pd.to_numeric(df[col], errors="coerce").rename(col)
-            r = num_by_group(xs, ys, col) if y_cat else num_num(xs, ys)
+            r = num_by_group(xs, ys, col, non_parametrique) if y_cat else num_num(xs, ys, non_parametrique)
         else:
             continue
         r.x = col
@@ -394,10 +405,10 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
 
     valid = [r for r in results if not np.isnan(r.p)]
     if valid:
-        adj = multipletests([r.p for r in valid], method="fdr_bh")[1]
+        adj = multipletests([r.p for r in valid], method=correction)[1] if corrige else [r.p for r in valid]
         for r, pa in zip(valid, adj, strict=True):
             r.p_fdr = float(pa)
-    sec.refs |= {"benjamini1995", "wasserstein2016"}
+    sec.refs |= {"wasserstein2016"} | ({ref_corr} if ref_corr else set())
     for r in results:
         sec.refs |= r.refs
 
@@ -405,8 +416,9 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
     abbrev = {"V de Cramér": "V", "d de Somers": "dS", "d de Cohen": "d", "Corrélation bisériale de rang": "rb",
               "ω²": "ω²", "ε²": "ε²", "r de Pearson": "r", "ρ de Spearman": "ρ"}
     legend = ("Mesures d'association : V, V de Cramér ; dS, d de Somers ; d, d de Cohen ; rb, corrélation bisériale "
-              "de rang ; ω², oméga carré ; ε², epsilon carré ; r, Pearson ; ρ, Spearman. p (FDR) : probabilité "
-              "critique corrigée par la procédure de Benjamini et Hochberg pour l'ensemble des variables testées.")
+              "de rang ; ω², oméga carré ; ε², epsilon carré ; r, Pearson ; ρ, Spearman."
+              + (f" {pcol} : probabilité critique corrigée ({proc}) pour l'ensemble des variables testées."
+                 if corrige else " Probabilités critiques non corrigées pour la multiplicité des tests."))
 
     def assoc(r):
         return f"{abbrev.get(r.effect_label, r.effect_label)} = {fmt.num(r.effect)}" if r.effect_label else "-"
@@ -422,7 +434,7 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
             info = ds.variables[r.x]
             head = {"Variable": info.label, "Modalité": "", "N": fmt.integer(r.n)}
             head.update({(f"% « {c} »"): "" for c in show})
-            head.update({"Test": r.test, "p": fmt.pval(r.p), "p (FDR)": fmt.pval(r.p_fdr), "Association": assoc(r)})
+            head.update({"Test": r.test, "p": fmt.pval(r.p), "p corr": fmt.pval(r.p_fdr), "Association": assoc(r)})
             rows.append(head)
             ct = r.details.get("crosstab")
             if ct is None:
@@ -432,7 +444,7 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
                 row = {"Variable": "", "Modalité": str(mod), "N": fmt.integer(ct.loc[mod].sum())}
                 for c in show:
                     row[f"% « {c} »"] = fmt.pct(rp.loc[mod, c]) if c in rp.columns else "-"
-                row.update({"Test": "", "p": "", "p (FDR)": "", "Association": ""})
+                row.update({"Test": "", "p": "", "p corr": "", "Association": ""})
                 rows.append(row)
         if rows:
             sec.tables.append(Table(
@@ -452,7 +464,7 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
                 row[f"« {c} »"] = ("-" if not g else f"{fmt.num(g['moyenne'])} ({fmt.num(g['ecart_type'])})"
                                    if r.details.get("parametrique") else
                                    f"{fmt.num(g['mediane'])} [{fmt.num(g['q1'])} ; {fmt.num(g['q3'])}]")
-            row.update({"Test": r.test, "p": fmt.pval(r.p), "p (FDR)": fmt.pval(r.p_fdr), "Association": assoc(r)})
+            row.update({"Test": r.test, "p": fmt.pval(r.p), "p corr": fmt.pval(r.p_fdr), "Association": assoc(r)})
             qrows.append(row)
         if qrows:
             sec.tables.append(Table(
@@ -466,20 +478,24 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
             info = ds.variables[r.x]
             if "groupes" in r.details:
                 rows.append({"Variable": info.label, "Modalité": "", "N": fmt.integer(r.n), "Moyenne (é.-t.)": "",
-                             "Médiane [Q1 ; Q3]": "", "Test": r.test, "p": fmt.pval(r.p), "p (FDR)": fmt.pval(r.p_fdr),
+                             "Médiane [Q1 ; Q3]": "", "Test": r.test, "p": fmt.pval(r.p), "p corr": fmt.pval(r.p_fdr),
                              "Taille d'effet": assoc(r)})
                 for mod, g in r.details["groupes"].items():
                     rows.append({"Variable": "", "Modalité": mod, "N": fmt.integer(g["n"]),
                                  "Moyenne (é.-t.)": f"{fmt.num(g['moyenne'])} ({fmt.num(g['ecart_type'])})",
                                  "Médiane [Q1 ; Q3]": f"{fmt.num(g['mediane'])} [{fmt.num(g['q1'])} ; {fmt.num(g['q3'])}]",
-                                 "Test": "", "p": "", "p (FDR)": "", "Taille d'effet": ""})
+                                 "Test": "", "p": "", "p corr": "", "Taille d'effet": ""})
             else:
                 ci = f" {fmt.ci(*r.effect_ci)}" if r.effect_ci else ""
                 rows.append({"Variable": info.label, "Modalité": "(corrélation)", "N": fmt.integer(r.n),
                              "Moyenne (é.-t.)": "", "Médiane [Q1 ; Q3]": "", "Test": r.test, "p": fmt.pval(r.p),
-                             "p (FDR)": fmt.pval(r.p_fdr), "Taille d'effet": f"{assoc(r)}{ci}"})
+                             "p corr": fmt.pval(r.p_fdr), "Taille d'effet": f"{assoc(r)}{ci}"})
         sec.tables.append(Table(title=f"Association entre {R.y} et les variables explicatives", data=pd.DataFrame(rows),
                                 note=f"Moyennes et médianes {R.de_y()} selon chaque modalité. " + legend))
+
+    for t in sec.tables:
+        if "p corr" in t.data.columns:
+            t.data = t.data.rename(columns={"p corr": pcol}) if corrige else t.data.drop(columns=["p corr"])
 
     # --- Tableau des justifications ---
     just_rows = [{"Variable": ds.variables[r.x].label, "Test retenu": r.test, "Justification": r.justification,
@@ -492,7 +508,7 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
 
     # --- Post-hoc ---
     for r in results:
-        if r.posthoc is not None and r.p_fdr < 0.05:
+        if r.posthoc is not None and seuil.significatif(r.p_fdr):
             ph = r.posthoc.copy()
             ph["Différence"] = ph["Différence"].map(fmt.num)
             ph["p ajustée"] = ph["p ajustée"].map(fmt.pval)
@@ -505,17 +521,20 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
 
     # --- Texte ---
     tested = len(valid)
-    sig = [r for r in valid if r.p_fdr < 0.05]
-    sig_raw_only = [r for r in valid if r.p < 0.05 <= r.p_fdr]
+    al = seuil.alpha()
+    sig = [r for r in valid if r.p_fdr < al]
+    sig_raw_only = [r for r in valid if r.p < al <= r.p_fdr]
     intro = (f"Les tableaux ci-dessous présentent les associations testées entre {R.y} et chacune des variables "
              f"explicatives. Sur les {nombre(tested, 'variables')} testées, ")
+    st = seuil.texte()
     if not sig:
-        intro += "aucune ne ressort de manière significative au seuil de 5 % "
+        intro += f"aucune ne ressort de manière significative au seuil de {st}"
     elif len(sig) == 1:
-        intro += "une seule ressort de manière significative au seuil de 5 % "
+        intro += f"une seule ressort de manière significative au seuil de {st}"
     else:
-        intro += f"{nombre(len(sig), feminin=True)} ressortent de manière significative au seuil de 5 % "
-    intro += "après correction pour les tests multiples (procédure de Benjamini et Hochberg, 1995)"
+        intro += f"{nombre(len(sig), feminin=True)} ressortent de manière significative au seuil de {st}"
+    if corrige:
+        intro += f" après correction pour les tests multiples ({proc})"
     if sig_raw_only:
         noms = enumeration([R.v(r.x) for r in sig_raw_only])
         if len(sig_raw_only) == 1:
@@ -524,12 +543,15 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
             intro += f", et {nombre(len(sig_raw_only), feminin=True)} autres ({noms}) ne le sont qu'avant cette correction"
     intro += (". Il convient de préciser que ces associations sont brutes : elles ne tiennent pas compte de l'influence "
               "des autres facteurs, ce qui fera l'objet de l'analyse multivariée.")
+    if not corrige:
+        intro += (" Par ailleurs, conformément au choix de l'auteur, les probabilités critiques ne sont pas corrigées "
+                  "pour la multiplicité des tests, ce qui accroît le risque de conclure à tort à une association.")
     sec.paragraphs.append(intro)
     sec.facts.update({"bivarie.nb_testees": tested, "bivarie.nb_significatives": len(sig),
                       "bivarie.nb_sig_avant_correction": len(sig) + len(sig_raw_only)})
     k = 0
     for r in sorted(valid, key=lambda t: t.p):
-        txt = _sentence(r, R, yinfo, y_cat, k, len(sig))
+        txt = _sentence(r, R, yinfo, y_cat, k, len(sig), corrige)
         if txt:
             sec.paragraphs.append(txt)
             k += 1
@@ -558,7 +580,7 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
         sec.key_points.append(
             f"L'analyse bivariée met en évidence une association significative entre {R.y} et "
             f"{nombre(len(sig), feminin=True)} des {nombre(tested, 'variables')} testées, notamment {top}.")
-    ns = [R.v(r.x) for r in valid if r.p_fdr >= 0.05]
+    ns = [R.v(r.x) for r in valid if r.p_fdr >= al]
     if len(ns) == 1:
         sec.paragraphs.append(f"{'À l’inverse' if sig else 'Ainsi'}, {ns[0]} n'{est(ns[0])} pas "
                               f"{accord('associé', ns[0])} de manière significative {a_(R.y)}.".replace("’", "'"))
@@ -600,8 +622,13 @@ def bivariate(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path, m
         "Mann-Whitney (1947) pour deux groupes ; ANOVA, ANOVA de Welch ou test de Kruskal-Wallis (1952) au-delà, "
         "selon la normalité dans chaque groupe et l'homogénéité des variances (Levene, 1960), suivis de "
         "comparaisons deux à deux ajustées. Pour deux variables quantitatives : corrélation de Pearson ou de "
-        "Spearman (1904). Chaque test est accompagné d'une taille d'effet. La multiplicité des tests est "
-        "contrôlée par la procédure de Benjamini et Hochberg (1995).")
+        "Spearman (1904). Chaque test est accompagné d'une taille d'effet. "
+        + ({"fdr_bh": "La multiplicité des tests est contrôlée par la procédure de Benjamini et Hochberg (1995).",
+            "holm": "La multiplicité des tests est contrôlée par la procédure de Holm (1979), plus conservatrice.",
+            "aucune": "À la demande de l'auteur, les probabilités critiques ne sont pas corrigées pour la "
+                      "multiplicité des tests."}[correction])
+        + (" À la demande de l'auteur, les comparaisons impliquant une variable quantitative reposent sur des tests "
+           "non paramétriques (Mann-Whitney, Kruskal-Wallis, corrélation de Spearman)." if non_parametrique else ""))
     sec.extra["tests"] = results
     return sec
 
@@ -612,12 +639,12 @@ MESURES = {"V de Cramér": "un V de Cramér", "d de Somers": "un d de Somers", "
            "ρ de Spearman": "un coefficient de corrélation de Spearman"}
 
 
-def _stats_txt(r: TestResult) -> str:
+def _stats_txt(r: TestResult, corrige: bool = True) -> str:
     """« avec un V de Cramér de 0,15 et une probabilité critique corrigée inférieure à 0,001 (χ² = 57,00 ; ddl = 1) »."""
     txt = "avec "
     if r.effect_label and not np.isnan(r.effect):
         txt += f"{MESURES.get(r.effect_label, 'un ' + r.effect_label)} de {fmt.num(r.effect)} et "
-    txt += pcrit(r.p_fdr, corrigee=True)
+    txt += pcrit(r.p_fdr, corrigee=corrige)
     if r.stat_label and not np.isnan(r.stat):
         stat = f"{r.stat_label} = {fmt.num(r.stat)}"
         if r.df is not None:
@@ -635,12 +662,12 @@ def _intensite(strength: str, k: int) -> str:
     return f"Cette association est d'intensité {strength}."
 
 
-def _sentence(r: TestResult, R, yinfo, y_cat: bool, k: int, total: int = 0) -> str:
+def _sentence(r: TestResult, R, yinfo, y_cat: bool, k: int, total: int = 0, corrige: bool = True) -> str:
     """Commentaire d'une association significative, dans le style des mémoires de statistique sociale."""
-    if not r.p_fdr < 0.05:
+    if not seuil.significatif(r.p_fdr):
         return ""
     x = R.v(r.x)
-    st = _stats_txt(r)
+    st = _stats_txt(r, corrige)
     ass = accord("associé", x)
     if k == 0:
         head = f"{majuscule(x)} {est(x)} {ass} de manière significative {a_(R.y)}, {st}."

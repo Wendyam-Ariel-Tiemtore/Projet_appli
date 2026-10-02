@@ -179,3 +179,15 @@ progress { width: 100%; height: 0.9rem; accent-color: var(--sarcelle); }
 .actions--haut { margin: 0 0 1.25rem; }
 .sans-marge { margin-top: 0; }
 .espace-haut { margin-top: 0.4rem; }
+
+/* Thèmes de présentation : aperçu des couleurs */
+.themes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1.5rem; }
+@media (max-width: 720px) { .themes { grid-template-columns: 1fr; } }
+.choix.theme { align-items: center; }
+.nuancier { display: inline-flex; border-radius: 6px; overflow: hidden; flex: none; }
+.nuancier span { display: block; width: 1.4rem; height: 1.4rem; }
+.theme-ardoise span:nth-child(1) { background: #22303A; } .theme-ardoise span:nth-child(2) { background: #2F4858; } .theme-ardoise span:nth-child(3) { background: #2A9D8F; }
+.theme-foret span:nth-child(1) { background: #1C3326; } .theme-foret span:nth-child(2) { background: #2C5F2D; } .theme-foret span:nth-child(3) { background: #B8892B; }
+.theme-terre span:nth-child(1) { background: #3B2320; } .theme-terre span:nth-child(2) { background: #9C4434; } .theme-terre span:nth-child(3) { background: #3E7C74; }
+.theme-nuit span:nth-child(1) { background: #1B2250; } .theme-nuit span:nth-child(2) { background: #26357A; } .theme-nuit span:nth-child(3) { background: #D9961A; }
+.libelle { font-weight: 600; margin: 1.1rem 0 0.2rem; }

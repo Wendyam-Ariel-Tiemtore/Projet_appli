@@ -13,13 +13,14 @@ from pathlib import Path
 
 import pandas as pd
 
-from .stats import audit, bivariate, descriptive, models, multilevel, multivariate, survival
+from .stats import audit, bivariate, descriptive, models, multilevel, multivariate, seuil, survival
 from .stats.io import KINDS, Dataset
 from .stats.results import Section, Table
 from .writing.composer import RequestSpec, compose
 from .writing.style import nettoyer, nombre
 
 Progress = Callable[[int, str], None]
+ANALYSES = ("bivarie", "multivarie", "multiniveau", "factorielles", "survie")
 
 
 @dataclass
@@ -49,6 +50,11 @@ class AnalysisConfig:
     year_from: int | None = None
     llm: str = "aucun"  # aucun | local | claude
     consent_external: bool = False
+    # Choix de méthodes de l'auteur
+    alpha: float = 0.05  # seuil de signification : 0,01 | 0,05 | 0,10
+    correction: str = "fdr_bh"  # fdr_bh | holm | aucune
+    non_parametrique: bool = False  # tests non paramétriques pour les variables quantitatives
+    analyses: list[str] = field(default_factory=lambda: list(ANALYSES))
 
     @classmethod
     def from_dict(cls, d: dict) -> AnalysisConfig:
@@ -76,7 +82,17 @@ def apply_overrides(ds: Dataset, cfg: AnalysisConfig) -> None:
 
 def run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, settings, secret: bytes,
         progress: Progress | None = None, provider=None) -> dict[str, Path]:
+    jeton = seuil.definir(cfg.alpha)
+    try:
+        return _run(ds, cfg, spec, workdir, settings, secret, progress, provider)
+    finally:
+        seuil.retablir(jeton)
+
+
+def _run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, settings, secret: bytes,
+         progress: Progress | None = None, provider=None) -> dict[str, Path]:
     say = progress or (lambda pct, msg: None)
+    voulu = set(cfg.analyses if cfg.analyses is not None else ANALYSES)
     warnings.filterwarnings("ignore")
     workdir.mkdir(parents=True, exist_ok=True)
     figdir = workdir / "figures"
@@ -97,10 +113,11 @@ def run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, sett
     sections["descriptif"] = descriptive.describe(ds, used, figdir, weight=cfg.weight, outcome=cfg.outcome)
 
     expl = [v for v in cfg.explanatory if v in ds.variables and v != cfg.outcome and v != cfg.cluster]
-    if cfg.outcome and expl:
+    if cfg.outcome and expl and "bivarie" in voulu:
         say(28, "Analyse bivariée et choix des tests")
-        sections["bivarie"] = bivariate.bivariate(ds, cfg.outcome, expl, figdir)
-
+        sections["bivarie"] = bivariate.bivariate(ds, cfg.outcome, expl, figdir, correction=cfg.correction,
+                                                  non_parametrique=cfg.non_parametrique)
+    if cfg.outcome and expl and "multivarie" in voulu:
         say(42, "Modélisation multivariée")
         try:
             sections["multivarie"] = models.explain(
@@ -109,6 +126,7 @@ def run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, sett
         except Exception as exc:  # noqa: BLE001
             sections["multivarie"] = _failed("multivarie", "Analyse explicative multivariée", exc)
 
+    if cfg.outcome and expl and "multiniveau" in voulu:
         if cfg.cluster and cfg.cluster in ds.variables:
             say(55, "Modèles multi-niveaux")
             try:
@@ -118,7 +136,7 @@ def run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, sett
             except Exception as exc:  # noqa: BLE001
                 sections["multiniveau"] = _failed("multiniveau", "Analyse multi-niveaux", exc)
 
-    if cfg.factorial:
+    if cfg.factorial and "factorielles" in voulu:
         say(66, "Analyses factorielles et typologie")
         quant = [v for v in used if ds.variables[v].kind in ("continue", "comptage") and v != cfg.outcome]
         qual = [v for v in used if ds.variables[v].kind in ("binaire", "nominale", "ordinale") and v != cfg.outcome]
@@ -138,7 +156,7 @@ def run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, sett
         sections["descriptif"].tables += sec.tables
         sections["descriptif"].refs |= sec.refs
 
-    if cfg.time_var and cfg.event_var:
+    if cfg.time_var and cfg.event_var and "survie" in voulu:
         say(74, "Analyse de survie")
         try:
             sections["survie"] = survival.survival(ds, cfg.time_var, cfg.event_var,
@@ -178,7 +196,19 @@ def run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, sett
     stem = _slug(spec.title) or "rapport"
     docx_path = build_docx(document, workdir / f"{stem}.docx")
     all_tables = [var_table] + [t for s in sections.values() for t in s.tables]
-    xlsx_path = export_tables_xlsx(all_tables, workdir / f"{stem}_tableaux.xlsx")
+    xlsx_path = export_tables_xlsx(all_tables, workdir / f"{stem}_tableaux.xlsx", spec.author, spec.title)
+    pptx_path = None
+    from .writing.presentation import PresentationSpec
+    pres = PresentationSpec.from_dict(getattr(spec, "presentation", None))
+    if pres.active:
+        say(96, "Préparation de la présentation")
+        from .report.pptx_builder import build_pptx
+        from .writing.composer import _key_results, _limits
+        from .writing.phrases import Redac
+        from .writing.presentation import planifier
+        plan = planifier(pres, spec, sections, data_info, Redac(ds, cfg.outcome, _event_level(ds, cfg)), cfg,
+                         _key_results(sections), _limits(sections, data_info), figdir)
+        pptx_path = build_pptx(plan, workdir / f"{stem}_presentation.pptx")
     params = workdir / "parametres_reproductibilite.json"
     params.write_text(json.dumps(data_info["parameters"], ensure_ascii=False, indent=2), encoding="utf-8")
     bundle = workdir / f"{stem}_dossier_complet.zip"
@@ -186,11 +216,24 @@ def run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, sett
         z.write(docx_path, docx_path.name)
         z.write(xlsx_path, xlsx_path.name)
         z.write(params, params.name)
+        if pptx_path is not None:
+            z.write(pptx_path, pptx_path.name)
         for f in sorted(figdir.glob("*.png")):
             z.write(f, f"figures/{f.name}")
     say(100, "Terminé")
-    return {"docx": docx_path, "xlsx": xlsx_path, "zip": bundle, "params": params,
-            "log": document.log}  # type: ignore[dict-item]
+    out = {"docx": docx_path, "xlsx": xlsx_path, "zip": bundle, "params": params, "log": document.log}
+    if pptx_path is not None:
+        out["pptx"] = pptx_path
+    return out  # type: ignore[return-value]
+
+
+def _event_level(ds: Dataset, cfg: AnalysisConfig) -> str | None:
+    if not cfg.outcome or cfg.outcome not in ds.variables or ds.variables[cfg.outcome].kind != "binaire":
+        return None
+    from .stats.design import event_level_for
+    from .stats.io import as_categorical
+    cats = [str(c) for c in as_categorical(ds.df[cfg.outcome], ds.variables[cfg.outcome]).cat.categories]
+    return event_level_for(cats, cfg.event_level) if cats else None
 
 
 def _failed(key: str, title: str, exc: Exception) -> Section:
@@ -213,7 +256,10 @@ def _data_info(ds: Dataset, cfg: AnalysisConfig, sections: dict[str, Section]) -
                  f"{ds.variables[cfg.cluster].prose}.")
     params = {
         "date_analyse": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "graine_aleatoire": 42, "seuil": 0.05, "correction_multiplicite": "Benjamini-Hochberg",
+        "graine_aleatoire": 42, "seuil": cfg.alpha,
+        "correction_multiplicite": {"fdr_bh": "Benjamini-Hochberg", "holm": "Holm", "aucune": "aucune"}.get(
+            cfg.correction, cfg.correction),
+        "tests_non_parametriques_imposes": cfg.non_parametrique, "analyses_demandees": sorted(set(cfg.analyses)),
         "observations": n, "variable_dependante": cfg.outcome, "variables_explicatives": cfg.explanatory,
         "contexte": cfg.cluster, "niveau2": cfg.level2, "poids": cfg.weight, "references": cfg.references,
         "modalite_modelisee": cfg.event_level, "blocs": cfg.blocks, "pente_aleatoire": cfg.random_slope,

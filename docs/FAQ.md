@@ -35,9 +35,9 @@ Parce qu'il commande tout le reste. Une variable codée 1, 2, 3 peut être nomin
 
 Selon le niveau de mesure des deux variables et la vérification de ses conditions d'application : khi-deux de Pearson si les effectifs attendus respectent la règle de Cochran, test exact de Fisher pour un tableau 2 × 2 à faibles effectifs, probabilité critique par permutations sinon ; t de Welch ou Mann-Whitney pour deux groupes ; ANOVA, ANOVA de Welch ou Kruskal-Wallis au-delà, suivis de comparaisons deux à deux ; Pearson ou Spearman pour deux variables quantitatives. Un tableau du document justifie le test retenu pour chaque variable. Le détail figure dans le [guide méthodologique](/methodologie).
 
-### Pourquoi deux probabilités critiques, « p » et « p (FDR) » ?
+### Pourquoi deux probabilités critiques, « p » et « p (FDR) » ou « p (Holm) » ?
 
-Quand on teste une dizaine de variables, le risque d'obtenir au moins un résultat significatif par hasard augmente. La procédure de Benjamini et Hochberg corrige ce risque ; seule la probabilité corrigée est utilisée pour conclure, mais les deux sont présentées par transparence.
+Quand on teste une dizaine de variables, le risque d'obtenir au moins un résultat significatif par hasard augmente. La procédure de Benjamini et Hochberg (choix par défaut) ou celle de Holm, plus conservatrice, corrige ce risque ; seule la probabilité corrigée est utilisée pour conclure, mais les deux sont présentées par transparence. Si vous choisissez de ne pas corriger, le document le signale.
 
 ### Comment déclencher l'analyse multi-niveaux ?
 
@@ -72,6 +72,23 @@ Oui, selon les règles de votre institution. Une déclaration type figure en ann
 ### Le texte produit ressemble-t-il à un texte généré par une IA ?
 
 Non. Les paragraphes sont rédigés dans le style des mémoires de statistique sociale et de démographie : « nous » de modestie, connecteurs sobres, petits nombres écrits en lettres (« sept (07) »), rapports de cotes lus en « fois plus de chances », aucune ponctuation par tiret long. Un nettoyage typographique final s'applique à tout le document, y compris aux textes rédigés par un modèle. Pour un rendu encore plus personnel, précisez à l'étape « Variables » l'unité d'observation, l'événement étudié et la formulation de chaque variable, puis collez à l'étape « Demande » un extrait de l'un de vos propres textes : le modèle de langage en imitera les tournures.
+
+### Comment obtenir une présentation pour ma soutenance ou une réunion ?
+
+À l'étape « Demande », cochez « Produire aussi une présentation PowerPoint » et choisissez :
+
+- **le type** : soutenance (mémoire, rapport de stage, thèse), communication scientifique, séminaire de recherche, restitution professionnelle (décideurs, partenaires, bailleurs) ou atelier de validation ; chaque type propose des réglages par défaut que vous pouvez modifier ;
+- **la durée** (10 à 45 minutes) : environ une diapositive par minute et demie, les diapositives secondaires étant écartées si le temps manque ;
+- **le déroulé** : démarche classique (contexte, méthodes, résultats, conclusion) ou messages clés d'abord, comme on le fait devant des décideurs ;
+- **le niveau de détail** : détaillé (tests, intervalles de confiance, probabilités critiques) ou allégé (chiffres essentiels en mots simples) ;
+- **la présentation des résultats** : graphiques, tableaux, ou les deux ;
+- **le thème visuel, le format** (16:9 ou 4:3), **les contenus** à présenter, **vos recommandations**, les **notes de l'orateur** et les **annexes techniques**.
+
+Les titres des diapositives sont des phrases tirées de vos résultats (« La prévalence contraceptive moderne augmente avec le niveau d'instruction »), les graphiques sont modifiables dans PowerPoint et les notes de l'orateur reprennent le texte du document, adapté à l'oral. Aucune recommandation n'est inventée : seules les vôtres apparaissent.
+
+### Puis-je choisir mes méthodes d'analyse ?
+
+Oui. À l'étape « Demande », vous choisissez les analyses à conduire (bivariée, multivariée, multi-niveaux, factorielles, survie), le seuil de signification (1, 5 ou 10 %), la correction pour les tests multiples (Benjamini et Hochberg, Holm ou aucune) et l'approche des tests pour les variables quantitatives (choix automatique selon les conditions d'application, ou tests non paramétriques uniquement). Ces choix sont rappelés dans la section Méthodes du document et dans les paramètres de reproductibilité. Le type de modèle multivarié reste dicté par la nature de la variable dépendante, comme l'exige la rigueur.
 
 ### Quelle différence entre rédaction locale et rédaction par Claude ?
 

@@ -134,13 +134,32 @@ def scatter(x: pd.Series, y: pd.Series, x_label: str, y_label: str, outdir: Path
     return _save(fig, outdir, "nuage")
 
 
-def forest(rows: pd.DataFrame, effect_label: str, outdir: Path, log_scale: bool = True) -> Path:
-    """Graphique en forêt : colonnes 'terme', 'est', 'lo', 'hi'."""
+def forest(rows: pd.DataFrame, effect_label: str, outdir: Path, log_scale: bool = True,
+           diapo: dict | None = None) -> Path:
+    """Graphique en forêt : colonnes 'terme', 'est', 'lo', 'hi'.
+
+    `diapo` (facultatif) produit une version pour présentation : police plus grande, couleurs du thème
+    (clés 'couleur', 'accent', 'largeur', 'police')."""
+    if diapo:
+        with plt.rc_context({"font.size": diapo.get("police", 13), "axes.labelsize": diapo.get("police", 13)}):
+            return _forest(rows, effect_label, outdir, log_scale, diapo)
+    return _forest(rows, effect_label, outdir, log_scale, None)
+
+
+def _forest(rows, effect_label, outdir, log_scale, diapo):
     rows = rows.iloc[::-1]
-    fig, ax = plt.subplots(figsize=(5.6, max(2.4, 0.3 * len(rows) + 0.9)))
+    if diapo:
+        fig, ax = plt.subplots(figsize=(diapo.get("largeur", 7.0), max(3.0, 0.55 * len(rows) + 1.2)))
+        couleur, ecouleur, ms = diapo.get("couleur", MAIN), diapo.get("accent", "#7aa6c8"), 8
+        for side in ("left", "bottom"):
+            ax.spines[side].set_color("#9AA5AD")
+    else:
+        fig, ax = plt.subplots(figsize=(5.6, max(2.4, 0.3 * len(rows) + 0.9)))
+        couleur, ecouleur, ms = MAIN, "#7aa6c8", 4
     ys = np.arange(len(rows))
     ax.errorbar(rows["est"], ys, xerr=[rows["est"] - rows["lo"], rows["hi"] - rows["est"]], fmt="o",
-                color=MAIN, ecolor="#7aa6c8", capsize=2, markersize=4)
+                color=couleur, ecolor=ecouleur, capsize=3 if diapo else 2, markersize=ms,
+                elinewidth=2.2 if diapo else 1.0)
     ax.axvline(1.0 if log_scale else 0.0, color="grey", linestyle="--", linewidth=0.8)
     ax.set_yticks(ys, rows["terme"])
     if log_scale:

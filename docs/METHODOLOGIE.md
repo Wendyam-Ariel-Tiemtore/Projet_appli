@@ -159,7 +159,30 @@ Les textes produits suivent les usages des mémoires et rapports de stage en sta
 
 **Formulations personnalisables.** À l'étape « Variables », l'auteur peut préciser l'unité d'observation (« femmes », « ménages »), l'événement étudié à l'infinitif (« utiliser une méthode contraceptive moderne »), le nom de l'indicateur (« la prévalence contraceptive moderne ») et la formulation de chaque variable dans le texte. À l'étape « Demande », un extrait de sa propre écriture peut être fourni au modèle de langage, qui en imite la grammaire et les tournures sans en reprendre le contenu.
 
-## 12. Ce que l'application ne fait pas, et le dit
+## 12. Choix de méthodes laissés à l'auteur
+
+| Choix | Options | Effet |
+|---|---|---|
+| Analyses conduites | bivariée, multivariée, multi-niveaux, factorielles et typologie, survie | l'audit de qualité et l'analyse descriptive sont toujours réalisés |
+| Seuil de signification | 1 %, 5 % (usuel), 10 % | lecture des associations, des effets ajustés et de la variance contextuelle ; les tests de conditions d'application (normalité, Levene, Hosmer-Lemeshow, Brant) restent à 5 % |
+| Correction pour les tests multiples | Benjamini et Hochberg (1995), Holm (1979), aucune | sans correction, le document le signale et rappelle le risque accru de faux positifs |
+| Tests pour les variables quantitatives | choix automatique, ou non paramétriques uniquement | Mann-Whitney, Kruskal-Wallis et Spearman remplacent alors t de Welch, ANOVA et Pearson |
+
+Le type de modèle multivarié n'est pas laissé au choix : il découle de la nature de la variable dépendante (linéaire, logistique binaire, multinomiale, ordonnée, Poisson ou binomiale négative), seule spécification correcte.
+
+## 13. Présentations orales
+
+La présentation est construite à partir des résultats calculés, sans aucune valeur ajoutée.
+
+- **Types** : soutenance, communication scientifique, séminaire, restitution professionnelle, atelier de validation ; chacun fixe des réglages par défaut (durée, déroulé, niveau de détail, visuels, annexes) que l'auteur peut modifier.
+- **Durée** : environ une diapositive par minute et demie ; au-delà, les diapositives secondaires (hypothèses détaillées, deuxième graphique bivarié, typologie, survie, limites) sont retirées en premier.
+- **Titres affirmatifs** tirés des résultats (« Sept (07) facteurs sur neuf (09) sont associés à… », « Après ajustement, quatre (04) facteurs restent associés à… »), conformément à l'usage des présentations de résultats.
+- **Graphiques natifs** modifiables dans PowerPoint, étiquettes écrites à la française ; graphique en forêt des seuls effets significatifs ; tableaux allégés pour les décideurs.
+- **Notes de l'orateur** : paragraphes du document adaptés à l'oral, avec une formule d'ouverture propre au type (« Monsieur le Président du jury, Mesdames et Messieurs les membres du jury… » pour une soutenance).
+- **Mise en page** : fonds sombres pour l'ouverture, la conclusion et la clôture ; pastilles numérotées comme seul motif ; aucune ligne décorative ; polices disponibles partout (Cambria et Calibri) ; espaces insécables du français (nombre et unité, guillemets, deux-points).
+- **Recommandations** : seules celles saisies par l'auteur sont reprises.
+
+## 14. Ce que l'application ne fait pas, et le dit
 
 - Pas d'inférence causale sur des données d'observation (pas de variables instrumentales ni d'appariement dans cette version).
 - Pas de plan de sondage complexe complet (stratification et pondération dans les estimations de variance) : la pondération est appliquée aux descriptifs, et les erreurs types sont robustes à la grappe si une grappe est déclarée. Un avertissement le rappelle dans la section Méthodes.

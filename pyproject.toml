@@ -1,6 +1,6 @@
 [project]
 name = "analyste-academique"
-version = "1.1.0"
+version = "1.2.0"
 description = "Application locale et sécurisée d'analyse statistique et de rédaction académique (rapport, mémoire, article)."
 readme = "README.md"
 requires-python = ">=3.11"

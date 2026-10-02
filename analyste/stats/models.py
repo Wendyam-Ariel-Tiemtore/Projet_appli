@@ -11,7 +11,7 @@ from scipy import stats
 
 from ..writing.phrases import Redac, accord, elision, est, pcrit
 from ..writing.style import a, de, enumeration, genre, guillemets, majuscule, nombre, sans_article
-from . import figures, fmt
+from . import figures, fmt, seuil
 from .design import Design, build_design, vif
 from .io import Dataset
 from .results import Figure, Section, Table
@@ -527,7 +527,7 @@ def effect_paragraphs(terms, tab: pd.DataFrame, kind: str, R: Redac, exp_scale: 
         cols = [c for c in t.columns if c in tab.index]
         if not cols:
             continue
-        sig = [c for c in cols if tab.loc[c, "p"] < 0.05]
+        sig = [c for c in cols if seuil.significatif(tab.loc[c, "p"])]
         if not sig:
             ns.append(R.v(t.variable))
             continue
@@ -583,11 +583,12 @@ def effect_paragraphs(terms, tab: pd.DataFrame, kind: str, R: Redac, exp_scale: 
     if ns and conclure_ns:
         if len(ns) == 1:
             out.append(f"En revanche, après ajustement, {ns[0]} n'{est(ns[0])} pas {accord('associé', ns[0])} de "
-                       f"manière significative {a(R.y)} au seuil de 5 %.")
+                       f"manière significative {a(R.y)} au seuil de {seuil.texte()}.")
         else:
             masc = any(genre(sans_article(v)) == "m" for v in ns)
             out.append(f"En revanche, après ajustement, ni {', ni '.join(ns)} ne sont "
-                       f"{'associés' if masc else 'associées'} de manière significative {a(R.y)} au seuil de 5 %.")
+                       f"{'associés' if masc else 'associées'} de manière significative {a(R.y)} au seuil de "
+                       f"{seuil.texte()}.")
     cles.sort(key=lambda t: t[0])
     return out, [c for _, c in cles[:4]], ns
 
@@ -661,8 +662,8 @@ def _crude_vs_adjusted(dsg: Design, crude: dict, fit: Fit, R: Redac) -> list[str
     adj = fit.table()
     lost, gained = [], []
     for t in dsg.terms:
-        c_sig = any(crude.get(c, {}).get("p", 1) < 0.05 for c in t.columns)
-        a_sig = any(c in adj.index and adj.loc[c, "p"] < 0.05 for c in t.columns)
+        c_sig = any(seuil.significatif(crude.get(c, {}).get("p", 1)) for c in t.columns)
+        a_sig = any(c in adj.index and seuil.significatif(adj.loc[c, "p"]) for c in t.columns)
         if c_sig and not a_sig:
             lost.append(R.v(t.variable))
         elif a_sig and not c_sig:
@@ -757,7 +758,7 @@ def _explain_multinomial(ds: Dataset, dsg: Design, sec: Section, outdir: Path, R
                                             f"{fmt.stars(p)}")
                     sec.facts[f"mnl.{col}.{c}.rrr"] = float(np.exp(b))
                     sec.facts[f"mnl.{col}.{c}.p"] = float(p)
-                    if p < 0.05 and len(phrases) < 8:
+                    if seuil.significatif(p) and len(phrases) < 8:
                         phrases.append(
                             f"{R.groupe(t.variable, lev)} ont {R.chances(float(np.exp(b)))} d'être dans la modalité "
                             f"{guillemets(c)} plutôt que dans la modalité {guillemets(ref)} que "
@@ -822,7 +823,7 @@ def _explain_ordinal(ds: Dataset, dsg: Design, sec: Section, outdir: Path, R: Re
                          "p": fmt.pval(res.pvalues[col])})
             sec.facts[f"ord.{col}.or"] = float(np.exp(b))
             sec.facts[f"ord.{col}.p"] = float(res.pvalues[col])
-            if res.pvalues[col] < 0.05:
+            if seuil.significatif(res.pvalues[col]):
                 ic = f"IC à 95 % : {fmt.ci(np.exp(ci.loc[col, 0]), np.exp(ci.loc[col, 1]))}"
                 orv = float(np.exp(b))
                 if t.levels:

@@ -1,5 +1,15 @@
 # Journal des modifications
 
+## 1.2.0 : 3 octobre 2026
+
+Présentations orales et choix de méthodes.
+
+- Présentation PowerPoint facultative : soutenance, communication scientifique, séminaire, restitution professionnelle ou atelier ; durée, déroulé (classique ou messages clés d'abord), niveau de détail, graphiques ou tableaux, quatre thèmes, format 16:9 ou 4:3, contenus, recommandations de l'auteur, notes de l'orateur et annexes techniques.
+- Titres de diapositives tirés des résultats, graphiques natifs modifiables, graphique en forêt des effets significatifs, espaces insécables du français.
+- Choix de méthodes : analyses à conduire, seuil de signification (1, 5 ou 10 %), correction pour les tests multiples (Benjamini et Hochberg, Holm ou aucune), tests non paramétriques uniquement.
+- Chapitres du mémoire numérotés selon les analyses réellement conduites.
+- Métadonnées des fichiers Word, PowerPoint et Excel au nom de l'auteur, sans mention des bibliothèques de génération.
+
 ## 1.1.0 : 2 octobre 2026
 
 Rédaction au style des mémoires et rapports de stage.

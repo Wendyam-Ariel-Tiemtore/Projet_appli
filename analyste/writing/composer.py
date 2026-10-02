@@ -6,7 +6,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from ..stats import fmt
+from ..stats import fmt, seuil
 from ..stats.references import REFERENCES, bibliography
 from ..stats.results import Figure, Section, Table
 from . import guard
@@ -43,6 +43,7 @@ class RequestSpec:
     keywords: list[str] = field(default_factory=list)
     english_abstract: bool = True
     style_sample: str = ""  # extrait rédigé par l'auteur, transmis au seul modèle de langage choisi
+    presentation: dict = field(default_factory=dict)  # options de la présentation (writing/presentation.py)
 
 
 @dataclass
@@ -221,7 +222,8 @@ def compose(spec: RequestSpec, sections: dict[str, Section], data_info: dict, va
             for n in s.method_notes:
                 methods.append(Item("para", n))
     methods.append(Item("para",
-                        "Le seuil de significativité retenu est de 5 %. Les analyses ont été réalisées avec Python "
+                        f"Le seuil de signification retenu est de {seuil.texte()}. Les analyses ont été réalisées avec "
+                        "Python "
                         + ", ".join(f"{k} {v}" for k, v in software.items())
                         + " (Seabold et Perktold, 2010 ; Virtanen et al., 2020), avec une graine aléatoire fixée à 42 "
                           "pour les procédures stochastiques."))
@@ -281,21 +283,21 @@ def compose(spec: RequestSpec, sections: dict[str, Section], data_info: dict, va
         items += [Item("heading", "Conclusion", 1), *paras(conclusion)]
     elif dt == "memoire":
         items += [Item("heading", "Introduction générale", 1), *paras(intro)]
-        items += [Item("heading", "Chapitre 1 : Cadre théorique et conceptuel", 1), *_demote(lit_items, 1),
-                  Item("heading", "Cadre conceptuel et hypothèses", 2),
-                  *(Item("bullets", items=spec.hypotheses) for _ in [0] if spec.hypotheses),
-                  Item("todo", TODO.format("schéma du cadre conceptuel et définition des concepts"))]
-        items += [Item("heading", "Chapitre 2 : Méthodologie", 1), *methods]
-        items += [Item("heading", "Chapitre 3 : Caractéristiques de la population étudiée", 1)]
-        for k in ("qualite", "descriptif"):
-            items += _demote(chapters_res.get(k, []), 1)
-        items += [Item("heading", "Chapitre 4 : Facteurs associés", 1)]
-        items += _demote(chapters_res.get("bivarie", []), 1)
+        chapitres = [("Cadre théorique et conceptuel",
+                      [*_demote(lit_items, 1), Item("heading", "Cadre conceptuel et hypothèses", 2),
+                       *(Item("bullets", items=spec.hypotheses) for _ in [0] if spec.hypotheses),
+                       Item("todo", TODO.format("schéma du cadre conceptuel et définition des concepts"))]),
+                     ("Méthodologie", methods),
+                     ("Caractéristiques de la population étudiée",
+                      [it for k in ("qualite", "descriptif") for it in _demote(chapters_res.get(k, []), 1)])]
+        if "bivarie" in chapters_res:
+            chapitres.append(("Facteurs associés", _demote(chapters_res["bivarie"], 1)))
         expl = [k for k in ("multivarie", "multiniveau", "acp", "acm", "cah", "survie") if k in chapters_res]
         if expl:
-            items += [Item("heading", "Chapitre 5 : Analyse explicative et typologique", 1)]
-            for k in expl:
-                items += _demote(chapters_res[k], 1)
+            chapitres.append(("Analyse explicative et typologique",
+                              [it for k in expl for it in _demote(chapters_res[k], 1)]))
+        for i, (titre_chap, contenu) in enumerate(chapitres, start=1):
+            items += [Item("heading", f"Chapitre {i} : {titre_chap}", 1), *contenu]
         items += [Item("heading", "Discussion", 1), *paras(discussion)]
         items += [Item("heading", "Conclusion générale et recommandations", 1), *paras(conclusion)]
     elif dt == "rapport_stage":
@@ -456,8 +458,9 @@ def _author_block(spec: RequestSpec) -> str:
 def _plan(dt: str, sections: dict) -> list[str]:
     """Chapitres (mémoire) ou parties (rapport de stage) effectivement présents dans le document."""
     if dt == "memoire":
-        plan = ["le cadre théorique et conceptuel", "la méthodologie", "les caractéristiques de la population étudiée",
-                "les facteurs associés"]
+        plan = ["le cadre théorique et conceptuel", "la méthodologie", "les caractéristiques de la population étudiée"]
+        if "bivarie" in sections:
+            plan.append("les facteurs associés")
         if any(k in sections for k in ("multivarie", "multiniveau", "acp", "acm", "cah", "survie")):
             plan.append("l'analyse explicative et typologique")
         return plan

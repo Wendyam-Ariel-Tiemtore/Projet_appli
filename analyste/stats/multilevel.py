@@ -20,7 +20,7 @@ from scipy.special import expit, logsumexp
 
 from ..writing.phrases import Redac, accord, elision, est, pcrit
 from ..writing.style import a, de, enumeration, genre, guillemets, nombre, sans_article
-from . import figures, fmt
+from . import figures, fmt, seuil
 from .design import Design, build_design
 from .io import Dataset
 from .models import effect_paragraphs
@@ -400,7 +400,7 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
         "ensuite introduites, en suivant l'évolution de la variance contextuelle.".replace(
             "regroupés", "regroupées" if R.fem else "regroupés"))
     txt = (f"Le modèle vide montre que {R.y} "
-           + ("varie significativement" if p0 < 0.05 else "ne varie pas significativement")
+           + ("varie significativement" if seuil.significatif(p0) else "ne varie pas significativement")
            + f" d'un contexte à l'autre. La variance contextuelle s'établit en effet à {fmt.num(s0, 3)}, et le test du "
              f"rapport de vraisemblance donne une statistique de {fmt.num(lr0)} avec {pcrit(p0)}. Le coefficient de "
              f"partition de la variance indique que {fmt.num(100 * vpc0, 1)} % de la variabilité du phénomène se "
@@ -416,7 +416,7 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
     sec.key_points.append(
         f"Le modèle vide montre que {fmt.num(100 * vpc0, 1)} % de la variabilité {de(R.y)} se situe entre les "
         "contextes.")
-    if p0 >= 0.05:
+    if not seuil.significatif(p0):
         sec.paragraphs.append("La variance contextuelle n'étant pas significative, le recours à un modèle "
                               "multi-niveaux apporte peu par rapport à un modèle à un seul niveau. Les résultats "
                               "suivants sont donc présentés à titre de vérification.")
@@ -431,7 +431,7 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
         if ch1 > 0:
             txt += (" Cette part des différences entre contextes tient donc à des effets de composition : les contextes "
                     f"diffèrent d'abord par les caractéristiques des {R.unite} qui y vivent.")
-        if f1.lr_var[1] < 0.05:
+        if seuil.significatif(f1.lr_var[1]):
             txt += (f" Néanmoins, la variance contextuelle reste significative, avec {pcrit(f1.lr_var[1])}, ce qui "
                     "signale l'existence d'autres facteurs de différenciation entre contextes, observés ou non.")
         else:
@@ -452,7 +452,7 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
             f"qui subsistait après contrôle des effets de composition. Au total, {fmt.num(tot, 1)} % de la variance "
             f"contextuelle initiale est expliquée. La variance résiduelle, qui s'établit à {fmt.num(s2, 3)}, "
             + ("demeure significative : d'autres facteurs contextuels non observés contribuent donc aux différences "
-               "entre contextes." if f2.lr_var[1] < 0.05 else "n'est plus significative."))
+               "entre contextes." if seuil.significatif(f2.lr_var[1]) else "n'est plus significative."))
         sec.key_points.append(
             f"Les effets de composition et de contexte expliquent ensemble {fmt.num(tot, 1)} % de la variance "
             "contextuelle initiale.")
@@ -475,7 +475,7 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
         sec.key_points.extend(cles2[:2])
         if not paras2:
             sec.paragraphs.append(f"Au niveau contextuel, aucune des variables introduites ({enumeration(ns2)}) "
-                                  f"n'est associée de manière significative {a(R.y)} au seuil de 5 %, toutes choses "
+                                  f"n'est associée de manière significative {a(R.y)} au seuil de {seuil.texte()}, toutes choses "
                                   "égales par ailleurs.")
             ns2 = []
     else:
@@ -491,7 +491,7 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
                                   f"de manière significative {a(R.y)} dans ce modèle.")
     for t in dsg.terms:
         for c in t.columns:
-            if c not in tab.index or tab.loc[c, "p"] >= 0.05:
+            if c not in tab.index or not seuil.significatif(tab.loc[c, "p"]):
                 continue
             r = tab.loc[c]
             sec.facts[f"mn.{final_name}.{c}.est"] = r["est"]

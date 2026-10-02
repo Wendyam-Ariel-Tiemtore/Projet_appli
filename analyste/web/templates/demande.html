@@ -49,9 +49,33 @@
   </fieldset>
 
   <fieldset>
-    <legend>Analyses</legend>
-    <label class="choix"><input type="checkbox" name="factorial" {% if cfg.factorial %}checked{% endif %}>
-      <span><strong class="titre">Analyses factorielles et typologie</strong><span class="aide">ACP, ACM et classification lorsque au moins trois variables du même type sont disponibles.</span></span></label>
+    <legend>Méthodes d'analyse</legend>
+    <p class="aide">L'analyse descriptive et l'audit de qualité sont toujours réalisés. Choisissez les autres analyses à conduire.</p>
+    <input type="hidden" name="analyses_presentes" value="1">
+    {% for k, (titre, aide) in ANALYSES_LIBELLES.items() %}
+    <label class="choix"><input type="checkbox" name="analyses" value="{{ k }}" {% if k in cfg.analyses and (k != "factorielles" or cfg.factorial) %}checked{% endif %}>
+      <span><strong class="titre">{{ titre }}</strong><span class="aide">{{ aide }}</span></span></label>
+    {% endfor %}
+    <div class="grille-2 espace-haut">
+      <div>
+        <label for="alpha">Seuil de signification <span class="aide">Seuil de lecture des associations et des effets. Les tests de conditions d'application restent à 5 %.</span></label>
+        <select id="alpha" name="alpha">
+          {% for v, l in [("0.01", "1 %"), ("0.05", "5 % (usuel)"), ("0.10", "10 %")] %}<option value="{{ v }}" {% if "%.2f"|format(cfg.alpha) == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="correction">Correction pour les tests multiples <span class="aide">Limite le risque de conclure à tort à une association lorsque de nombreuses variables sont testées.</span></label>
+        <select id="correction" name="correction">
+          <option value="fdr_bh" {% if cfg.correction == "fdr_bh" %}selected{% endif %}>Benjamini et Hochberg (recommandé)</option>
+          <option value="holm" {% if cfg.correction == "holm" %}selected{% endif %}>Holm (plus conservatrice)</option>
+          <option value="aucune" {% if cfg.correction == "aucune" %}selected{% endif %}>Aucune correction</option>
+        </select>
+      </div>
+    </div>
+    <label class="choix"><input type="radio" name="approche" value="auto" {% if not cfg.non_parametrique %}checked{% endif %}>
+      <span><strong class="titre">Choix automatique des tests (recommandé)</strong><span class="aide">Tests paramétriques lorsque la normalité et l'homogénéité des variances sont vérifiées, non paramétriques sinon.</span></span></label>
+    <label class="choix"><input type="radio" name="approche" value="non_parametrique" {% if cfg.non_parametrique %}checked{% endif %}>
+      <span><strong class="titre">Tests non paramétriques uniquement</strong><span class="aide">Mann-Whitney, Kruskal-Wallis et corrélation de Spearman pour toutes les variables quantitatives.</span></span></label>
   </fieldset>
 
   <fieldset>
@@ -66,6 +90,63 @@
     {% else %}
     <p class="aide">La recherche bibliographique en ligne est désactivée par l'administrateur.</p>
     {% endif %}
+  </fieldset>
+
+  <fieldset>
+    <legend>Présentation orale (facultatif)</legend>
+    <label class="choix"><input type="checkbox" name="pres_active" id="pres_active" {% if pres.active %}checked{% endif %}>
+      <span><strong class="titre">Produire aussi une présentation PowerPoint</strong><span class="aide">Diapositives construites à partir des résultats, avec graphiques modifiables et notes de l'orateur rédigées.</span></span></label>
+    <div id="bloc-presentation" {% if not pres.active %}hidden{% endif %}>
+      <p class="libelle">Type de présentation</p>
+      {% for k, g in P.GENRES.items() %}
+      <label class="choix"><input type="radio" name="pres_genre" value="{{ k }}" {% if pres.genre == k %}checked{% endif %}
+          data-duree="{{ g.duree }}" data-deroule="{{ g.deroule }}" data-niveau="{{ g.niveau }}" data-visuels="{{ g.visuels }}" data-annexes="{{ 'oui' if g.annexes else 'non' }}">
+        <span><strong class="titre">{{ g.libelle }}</strong><span class="aide">{{ g.aide }}</span></span></label>
+      {% endfor %}
+      <div class="grille-2 espace-haut">
+        <div>
+          <label for="pres_duree">Durée de l'intervention</label>
+          <select id="pres_duree" name="pres_duree">{% for d in P.DUREES %}<option value="{{ d }}" {% if pres.duree == d %}selected{% endif %}>{{ d }} minutes</option>{% endfor %}</select>
+        </div>
+        <div>
+          <label for="pres_deroule">Déroulé</label>
+          <select id="pres_deroule" name="pres_deroule">{% for k, l in P.DEROULES.items() %}<option value="{{ k }}" {% if pres.deroule == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        </div>
+        <div>
+          <label for="pres_niveau">Niveau de détail statistique</label>
+          <select id="pres_niveau" name="pres_niveau">{% for k, l in P.NIVEAUX.items() %}<option value="{{ k }}" {% if pres.niveau == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        </div>
+        <div>
+          <label for="pres_visuels">Présentation des résultats</label>
+          <select id="pres_visuels" name="pres_visuels">{% for k, l in P.VISUELS.items() %}<option value="{{ k }}" {% if pres.visuels == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        </div>
+        <div>
+          <label for="pres_format">Format des diapositives</label>
+          <select id="pres_format" name="pres_format">{% for f in P.FORMATS %}<option value="{{ f }}" {% if pres.format == f %}selected{% endif %}>{{ "Écran large (16:9)" if f == "16:9" else "Standard (4:3)" }}</option>{% endfor %}</select>
+        </div>
+      </div>
+      <p class="libelle">Thème visuel</p>
+      <div class="themes">
+        {% for k, l in P.THEMES.items() %}
+        <label class="choix theme"><input type="radio" name="pres_theme" value="{{ k }}" {% if pres.theme == k %}checked{% endif %}>
+          <span class="nuancier theme-{{ k }}"><span></span><span></span><span></span></span><span>{{ l }}</span></label>
+        {% endfor %}
+      </div>
+      <p class="libelle">Contenus à présenter <span class="aide">Une partie n'apparaît que si l'analyse correspondante a été conduite ; la durée choisie peut conduire à écarter les diapositives secondaires.</span></p>
+      <div class="grille-2">
+        {% for k, l in P.CONTENUS.items() %}
+        <label class="choix"><input type="checkbox" name="pres_contenus" value="{{ k }}" {% if k in pres.contenus %}checked{% endif %}><span>{{ l }}</span></label>
+        {% endfor %}
+      </div>
+      <label for="pres_recommandations">Recommandations <span class="aide">Une par ligne. Elles sont reprises telles quelles : l'application n'en invente aucune.</span></label>
+      <textarea id="pres_recommandations" name="pres_recommandations">{{ pres.recommandations | join("\n") }}</textarea>
+      <label for="pres_contact">Contact affiché sur la dernière diapositive (facultatif)</label>
+      <input id="pres_contact" name="pres_contact" type="text" maxlength="120" value="{{ pres.contact }}">
+      <label class="choix"><input type="checkbox" name="pres_notes" {% if pres.notes %}checked{% endif %}>
+        <span><strong class="titre">Notes de l'orateur</strong><span class="aide">Le texte à dire sous chaque diapositive, dans le style du document.</span></span></label>
+      <label class="choix"><input type="checkbox" name="pres_annexes" id="pres_annexes" {% if pres.annexes %}checked{% endif %}>
+        <span><strong class="titre">Diapositives techniques en annexe</strong><span class="aide">Tableaux détaillés du modèle et qualité d'ajustement, après la diapositive de clôture.</span></span></label>
+    </div>
   </fieldset>
 
   <fieldset>

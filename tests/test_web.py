@@ -67,7 +67,11 @@ def test_parcours_complet_et_isolation(app, demo_csv):
     r = c.get(f"/projets/{pid}/demande")
     assert 'name="style_sample"' in r.text
     r = c.post(f"/projets/{pid}/demande", data={"csrf": csrf(r.text), "doc_type": "article", "title": "Essai",
-                                                 "llm": "aucun", "style_sample": "Nous constatons que..."},
+                                                 "llm": "aucun", "style_sample": "Nous constatons que...",
+                                                 "pres_active": "on", "pres_genre": "communication",
+                                                 "pres_theme": "nuit", "pres_contenus": ["bivarie", "multivarie"],
+                                                 "analyses_presentes": "1", "analyses": ["bivarie", "multivarie"],
+                                                 "alpha": "0.05", "correction": "holm"},
                follow_redirects=False)
     assert r.status_code == 303
     for _ in range(120):
@@ -78,7 +82,10 @@ def test_parcours_complet_et_isolation(app, demo_csv):
     assert etat["statut"] == "termine", etat
     r = c.get(f"/projets/{pid}")
     files = re.findall(rf"/projets/{pid}/fichiers/([a-z]+\.enc)", r.text)
-    assert set(files) == {"docx.enc", "xlsx.enc", "zip.enc", "params.enc"}
+    assert set(files) == {"docx.enc", "pptx.enc", "xlsx.enc", "zip.enc", "params.enc"}
+    pp = c.get(f"/projets/{pid}/fichiers/pptx.enc")
+    assert pp.status_code == 200 and pp.content[:2] == b"PK"
+    assert "presentationml" in pp.headers["content-type"]
     d = c.get(f"/projets/{pid}/fichiers/docx.enc")
     assert d.status_code == 200 and d.content[:2] == b"PK"
 

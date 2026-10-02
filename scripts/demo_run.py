@@ -1,6 +1,7 @@
 """Exécute l'analyse complète sur le jeu de démonstration (sans interface web).
 
-Usage : python scripts/demo_run.py [dossier_de_sortie] [type_de_document]
+Usage : python scripts/demo_run.py [dossier_de_sortie] [type_de_document] [genre_de_presentation] [theme] [format]
+Exemple : python scripts/demo_run.py sortie memoire soutenance ardoise 16:9
 """
 
 from __future__ import annotations
@@ -30,6 +31,9 @@ LABELS = {
 def main() -> None:
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "sortie_demo")
     doc_type = sys.argv[2] if len(sys.argv) > 2 else "memoire"
+    genre = sys.argv[3] if len(sys.argv) > 3 else ""  # soutenance, communication, seminaire, restitution, atelier
+    theme = sys.argv[4] if len(sys.argv) > 4 else "ardoise"
+    format_ = sys.argv[5] if len(sys.argv) > 5 else "16:9"
     data = ROOT / "examples" / "enquete_demo.csv"
     if not data.exists():
         from scripts.generate_demo_data import simulate  # type: ignore
@@ -61,7 +65,11 @@ def main() -> None:
         hypotheses=["Le niveau d'instruction de la femme est positivement associé à l'utilisation de la "
                     "contraception moderne", "La présence d'un centre de santé dans la localité est associée à une "
                     "utilisation plus élevée"],
-        keywords=["contraception moderne", "analyse multiniveau", "effets de contexte", "Afrique de l'Ouest"])
+        keywords=["contraception moderne", "analyse multiniveau", "effets de contexte", "Afrique de l'Ouest"],
+        presentation={"active": bool(genre), "genre": genre or "soutenance", "theme": theme, "format": format_,
+                      "recommandations": ["Renforcer l'offre de services de planification familiale en milieu rural",
+                                          "Intégrer la sensibilisation à la contraception dans les programmes "
+                                          "d'alphabétisation des femmes"]} if genre else {})
     res = run(ds, cfg, spec, out, Settings(), b"demonstration-cle-32-octets!!!!!",
               progress=lambda p, m: print(f"{p:3d} % {m}"))
     for k, v in res.items():

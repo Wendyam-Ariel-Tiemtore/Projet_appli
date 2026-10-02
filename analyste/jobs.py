@@ -162,9 +162,11 @@ class ProjectStore:
                 crypto.shred_dir(res_dir)
             res_dir.mkdir(parents=True, mode=0o700)
             files = []
-            labels = {"docx": "Document Word", "xlsx": "Tableaux (Excel)", "zip": "Dossier complet (ZIP)",
-                      "params": "Paramètres de reproductibilité (JSON)"}
-            for kind in ("docx", "xlsx", "zip", "params"):
+            labels = {"docx": "Document Word", "pptx": "Présentation (PowerPoint)", "xlsx": "Tableaux (Excel)",
+                      "zip": "Dossier complet (ZIP)", "params": "Paramètres de reproductibilité (JSON)"}
+            for kind in ("docx", "pptx", "xlsx", "zip", "params"):
+                if kind not in out:
+                    continue
                 path: Path = out[kind]
                 stor = f"{kind}.enc"
                 crypto.write_encrypted(res_dir / stor, key, path.read_bytes(), f"{pid}:{stor}")

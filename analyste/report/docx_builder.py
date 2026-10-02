@@ -360,9 +360,21 @@ def build_docx(document: Document, out: Path) -> Path:
     new = doc.add_section(WD_SECTION.NEW_PAGE)
     new.footer.is_linked_to_previous = True
     _render(doc, document.annex, [0, 0, 0, 0], False)
+    _proprietes(doc.core_properties, spec.title, spec.author)
     out.parent.mkdir(parents=True, exist_ok=True)
     doc.save(out)
     return out
+
+
+def _proprietes(cp, titre_doc: str, auteur: str) -> None:
+    """Métadonnées du fichier : celles de l'auteur, sans mention de la bibliothèque qui l'a produit."""
+    from datetime import UTC, datetime
+    maintenant = datetime.now(UTC).replace(microsecond=0)
+    cp.title = (titre_doc or "")[:250]
+    cp.author = cp.last_modified_by = (auteur or "")[:120]
+    cp.comments = cp.subject = cp.keywords = cp.category = ""
+    cp.created = cp.modified = maintenant
+    cp.revision = 1
 
 
 def _para(doc, text: str) -> None:
@@ -400,10 +412,12 @@ def _render(doc, items: list[Item], counters: list[int], numbered: bool, chapitr
             doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
 
 
-def export_tables_xlsx(tables: list[Table], out: Path) -> Path:
+def export_tables_xlsx(tables: list[Table], out: Path, auteur: str = "", titre_doc: str = "") -> Path:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     wb = Workbook()
+    wb.properties.creator = wb.properties.lastModifiedBy = (auteur or "")[:120]
+    wb.properties.title = (titre_doc or "")[:250]
     ws0 = wb.active
     ws0.title = "Sommaire"
     ws0.append(["N°", "Tableau"])
