@@ -145,8 +145,13 @@ def run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, sett
         from .literature import review, sources
         works, log = sources.search(cfg.keywords, limit=60, year_from=cfg.year_from,
                                     api_key=settings.openalex_api_key or None, mailto=settings.openalex_mailto or None)
-        extractor = None
-        sections["litterature"] = review.literature_section(works, log, spec.title, extractor=extractor)
+        extractor = namer = None
+        from .writing.llm import NoProvider
+        if provider is not None and not isinstance(provider, NoProvider):
+            from .writing.assist import make_extractor, make_namer
+            extractor, namer = make_extractor(provider), make_namer(provider)
+        sections["litterature"] = review.literature_section(works, log, spec.title, extractor=extractor,
+                                                            namer=namer)
         sel = sections["litterature"].extra.get("works", [])
         lit_refs = review.work_references(sections["litterature"])
         lit_cites = [w.citation() for w in sel]

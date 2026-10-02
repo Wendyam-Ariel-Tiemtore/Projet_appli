@@ -128,6 +128,7 @@ Estimateur de Kaplan-Meier (1958), test du log-rank (Mantel, 1966), modèle de C
 - Déduplication par DOI, classement par pertinence et par citations, regroupement thématique (TF-IDF et classification).
 - **Tableau de synthèse** par thème : auteurs et année, objet, méthode, principaux résultats, limites (format du rapport INNOGOUV), rempli à partir des résumés disponibles.
 - Les éléments non disponibles dans le résumé sont marqués « non renseigné dans le résumé » plutôt qu'extrapolés.
+- Avec un modèle de langage, l'extraction de ces éléments et l'intitulé des thèmes sont rédigés par le modèle à partir du seul résumé ; tout nombre absent du résumé fait rejeter l'élément, remplacé par l'extraction par règles.
 - Références au format APA 7, avec DOI.
 
 ## 10. Structure des documents
