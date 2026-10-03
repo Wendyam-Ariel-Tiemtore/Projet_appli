@@ -1,15 +1,17 @@
 # Proxy HTTPS devant l'application.
 # - SITE_ADDRESS=localhost et TLS_MODE=internal : certificat d'une autorité locale (usage sur la machine).
 # - SITE_ADDRESS=analyse.mon-domaine.org et TLS_MODE=adresse@mail : certificat Let's Encrypt automatique.
+# L'adresse https://127.0.0.1 est aussi servie, avec un certificat de l'autorité locale : un navigateur
+# n'envoie pas de nom de serveur (SNI) pour une adresse IP, d'où le réglage default_sni ci-dessous.
 {
 	admin off
+	default_sni 127.0.0.1
 	servers {
 		protocols h1 h2
 	}
 }
 
-{$SITE_ADDRESS:localhost} {
-	tls {$TLS_MODE:internal}
+(application) {
 	encode zstd gzip
 	request_body {
 		max_size 64MB
@@ -17,7 +19,7 @@
 	header {
 		-Server
 		-Via
-		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		Strict-Transport-Security "max-age=63072000"
 	}
 	reverse_proxy app:8000 {
 		header_up X-Forwarded-Proto https
@@ -30,4 +32,14 @@
 		output stdout
 		format console
 	}
+}
+
+{$SITE_ADDRESS:localhost} {
+	tls {$TLS_MODE:internal}
+	import application
+}
+
+https://127.0.0.1 {
+	tls internal
+	import application
 }

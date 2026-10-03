@@ -1,5 +1,12 @@
 # Journal des modifications
 
+## 1.2.1 : 3 octobre 2026
+
+- Accès par https://127.0.0.1 corrigé : le proxy présente un certificat de l'autorité locale quand le navigateur n'envoie pas de nom de serveur (erreur ERR_SSL_PROTOCOL_ERROR).
+- Scripts `faire_confiance.ps1` (Windows) et `faire_confiance.sh` (macOS, Linux) pour supprimer l'avertissement du navigateur.
+- En-tête HSTS sans `includeSubDomains`, pour ne pas imposer HTTPS aux autres sous-domaines d'un nom de domaine.
+- Procédure de mise à jour documentée.
+
 ## 1.2.0 : 3 octobre 2026
 
 Présentations orales et choix de méthodes.

@@ -45,15 +45,26 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Ouvrez **https://localhost**. Au premier lancement, créez le compte administrateur.
+Ouvrez **https://localhost** (ou https://127.0.0.1), en tapant bien `https://`. Au premier lancement, créez le compte administrateur.
 
-Le certificat est émis par une autorité locale propre à votre installation : le navigateur affiche un avertissement tant que vous ne lui faites pas confiance. Pour le supprimer, importez le certificat racine dans votre système :
+Le certificat est émis par une autorité locale propre à votre installation : le navigateur affiche un avertissement tant que vous ne lui faites pas confiance. Pour le supprimer, une fois les conteneurs démarrés :
 
 ```bash
-docker compose cp proxy:/data/caddy/pki/authorities/local/root.crt ./autorite-locale.crt
+# Windows (PowerShell, dans le dossier du projet)
+powershell -ExecutionPolicy Bypass -File scripts\faire_confiance.ps1
+# macOS, Linux
+./scripts/faire_confiance.sh
 ```
 
-puis double-cliquez sur `autorite-locale.crt` (Windows, macOS) ou copiez-le dans `/usr/local/share/ca-certificates/` et lancez `sudo update-ca-certificates` (Linux).
+Puis fermez et rouvrez le navigateur.
+
+**Mettre à jour** une installation existante :
+
+```bash
+git pull
+docker compose up -d --build
+docker compose restart proxy
+```
 
 **Rédaction par un modèle local** (rien ne quitte la machine ; 16 Go de mémoire recommandés) :
 

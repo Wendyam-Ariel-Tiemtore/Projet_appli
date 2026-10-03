@@ -57,3 +57,31 @@ jobs:
           grep -qi "^content-security-policy:" headers.txt
           grep -qi "^x-frame-options: DENY" headers.txt
           grep -qi "^strict-transport-security:" headers.txt
+
+  pile-complete:
+    name: Pile Docker complète (proxy HTTPS)
+    needs: qualite-et-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validation de la configuration du proxy
+        run: |
+          docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: Démarrage comme sur un poste personnel
+        run: |
+          cp .env.example .env
+          docker compose up -d --build
+      - name: Accès par https://localhost et https://127.0.0.1 (sans SNI)
+        run: |
+          for i in $(seq 1 40); do
+            if docker compose cp proxy:/data/caddy/pki/authorities/local/root.crt ca.crt 2>/dev/null \
+               && curl -fsS --cacert ca.crt https://localhost/sante \
+               && curl -fsS --cacert ca.crt https://127.0.0.1/sante; then
+              curl -sS -o /dev/null -w "HTTP -> %{http_code} %{redirect_url}\n" http://localhost/
+              exit 0
+            fi
+            sleep 3
+          done
+          docker compose logs
+          exit 1

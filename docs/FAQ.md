@@ -110,6 +110,14 @@ Ils sont supprimés automatiquement après la durée fixée par l'administrateur
 
 ## Problèmes courants
 
+### Le navigateur affiche « ERR_SSL_PROTOCOL_ERROR » ou « Client sent an HTTP request to an HTTPS server »
+
+Le second message apparaît quand on ouvre `http://127.0.0.1:443` : il faut taper `https://`, sans numéro de port, soit **https://localhost**. Le premier apparaissait avec `https://127.0.0.1` dans les versions antérieures à 1.2.1, car un navigateur n'indique pas de nom de serveur pour une adresse IP et le proxy ne savait pas quel certificat présenter. Mettez à jour (`git pull`, `docker compose up -d --build`, puis `docker compose restart proxy`) ou utilisez https://localhost.
+
+### Le navigateur indique que la connexion n'est pas privée
+
+Le certificat provient de l'autorité locale de votre installation, que le navigateur ne connaît pas encore. Lancez `scripts\faire_confiance.ps1` (Windows) ou `scripts/faire_confiance.sh` (macOS, Linux) depuis le dossier du projet, puis rouvrez le navigateur.
+
 ### « L'analyse a échoué »
 
 Causes fréquentes : une variable qualitative déclarée comme continue ; une modalité très rare qui empêche l'estimation (séparation parfaite) ; deux variables redondantes (par exemple l'âge et le groupe d'âge dans le même modèle). Vérifiez le typage, regroupez les modalités rares dans votre fichier, retirez les doublons, puis relancez.

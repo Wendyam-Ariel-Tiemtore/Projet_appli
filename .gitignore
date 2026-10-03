@@ -14,3 +14,5 @@ sortie_demo/
 .DS_Store
 *.log
 certs/
+autorite-locale.crt
+*.pptx
