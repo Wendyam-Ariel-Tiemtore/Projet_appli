@@ -13,6 +13,8 @@ services:
       ANALYSTE_MASTER_KEY_FILE: /donnees/secrets/cle_maitresse
       ANALYSTE_OLLAMA_URL: ${ANALYSTE_OLLAMA_URL:-http://ollama:11434}
       ANALYSTE_ALLOWED_HOSTS: '${ANALYSTE_ALLOWED_HOSTS:-["localhost","127.0.0.1"]}'
+      # Seul le proxy est cru pour l'adresse réelle du visiteur (limitation des tentatives par adresse)
+      FORWARDED_ALLOW_IPS: 172.30.57.10
     volumes:
       - donnees:/donnees
     tmpfs:
@@ -23,10 +25,12 @@ services:
     pids_limit: 256
     mem_limit: 6g
     expose: ["8000"]
-    networks: [reseau]
+    networks:
+      reseau:
+        ipv4_address: 172.30.57.20
 
   proxy:
-    image: caddy:2-alpine
+    image: caddy:2.11-alpine
     restart: unless-stopped
     depends_on: [app]
     ports:
@@ -45,18 +49,26 @@ services:
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
     security_opt: ["no-new-privileges:true"]
-    networks: [reseau]
+    networks:
+      reseau:
+        ipv4_address: 172.30.57.10
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.19.0
     profiles: ["ia-locale"]
     restart: unless-stopped
     volumes:
       - ollama:/root/.ollama
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 512
     networks: [reseau]
 
 networks:
-  reseau: {}
+  reseau:
+    ipam:
+      config:
+        - subnet: 172.30.57.0/24
 
 volumes:
   donnees: {}

@@ -45,6 +45,11 @@ class Settings(BaseSettings):
 
     # Calcul
     worker_threads: int = 2
+    isolation_processus: bool = True  # chaque analyse dans un processus borné en durée et en mémoire
+    duree_max_analyse_minutes: int = 60
+    memoire_max_analyse_mo: int = 5120
+    analyses_par_utilisateur: int = 1  # analyses simultanées par compte
+    file_attente_max: int = 20  # analyses simultanées ou en attente, tous comptes confondus
 
 
 @lru_cache
@@ -61,8 +66,16 @@ def ensure_secret_file(path: Path, nbytes: int = 32) -> bytes:
         pass
     if path.exists():
         data = path.read_bytes()
-        if len(data) >= nbytes:
-            return data[:nbytes]
+        if len(data) < nbytes:
+            # Ne jamais régénérer en silence : toutes les données chiffrées deviendraient illisibles.
+            raise RuntimeError(f"Le fichier secret {path.name} est tronqué ou corrompu. Restaurez-le depuis une "
+                               "sauvegarde avant de relancer l'application.")
+        try:
+            if path.stat().st_mode & 0o077:
+                path.chmod(0o600)
+        except OSError:
+            pass
+        return data[:nbytes]
     data = secrets.token_bytes(nbytes)
     path.write_bytes(data)
     path.chmod(0o600)

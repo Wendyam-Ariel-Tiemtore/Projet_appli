@@ -13,8 +13,8 @@
   <input id="password" name="password" type="password" required minlength="12" autocomplete="new-password">
   <label for="password2">Confirmer le mot de passe</label>
   <input id="password2" name="password2" type="password" required minlength="12" autocomplete="new-password">
-  {% if settings.setup_token %}
-  <label for="jeton">Code d'installation <span class="aide">Valeur de ANALYSTE_SETUP_TOKEN dans le fichier .env du serveur.</span></label>
+  {% if code_requis %}
+  <label for="jeton">Code d'installation <span class="aide">Valeur de ANALYSTE_SETUP_TOKEN dans le fichier .env du serveur ou, à défaut, code affiché dans le journal de l'application (commande : docker compose logs app).</span></label>
   <input id="jeton" name="jeton" type="password" required autocomplete="off">
   {% endif %}
   <div class="actions"><button class="bouton" type="submit">Créer le compte</button></div>

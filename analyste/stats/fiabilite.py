@@ -283,7 +283,7 @@ def explorer_specification(X: pd.DataFrame, y: np.ndarray, termes, binaire: bool
             continue
         try:
             ll1 = _log_vraisemblance(np.column_stack([Xb, S]), y, binaire)
-        except Exception:  # noqa: BLE001, S112 - test non estimable : ignoré
+        except Exception:  # noqa: BLE001, S112  # nosec B112 - test non estimable : ignoré
             continue
         lr = max(0.0, 2 * (ll1 - ll0))
         out.append({"type": "non-linéarité", "variables": (t.variable,), "chi2": lr, "ddl": S.shape[1],
@@ -299,7 +299,7 @@ def explorer_specification(X: pd.DataFrame, y: np.ndarray, termes, binaire: bool
             continue
         try:
             ll1 = _log_vraisemblance(np.column_stack([Xb, inter]), y, binaire)
-        except Exception:  # noqa: BLE001, S112 - test non estimable : ignoré
+        except Exception:  # noqa: BLE001, S112  # nosec B112 - test non estimable : ignoré
             continue
         lr = max(0.0, 2 * (ll1 - ll0))
         out.append({"type": "interaction", "variables": (a, b), "chi2": lr, "ddl": inter.shape[1],

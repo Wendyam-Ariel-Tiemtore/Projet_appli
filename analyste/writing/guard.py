@@ -98,6 +98,15 @@ def _norm(s: str) -> str:
     s = unicodedata.normalize("NFKD", s.lower())
     return "".join(ch for ch in s if not unicodedata.combining(ch))
 
+# Indices d'un texte détourné (injection d'instructions via des résumés d'articles ou des données) :
+# liens, adresses électroniques, consignes adressées au lecteur ou au modèle.
+INJECTION_RE = re.compile(
+    r"(https?://\S+|www\.\S+|\b[\w.+-]+@[\w-]+\.[\w.]+\b|"
+    r"\b(ignore[rz]?|oublie[rz]?|disregard|ignore all)\b.{0,40}\b(instructions?|consignes?|règles?)\b|"
+    r"\b(consultez|cliquez|téléchargez|déposez|envoyez|contactez|visitez|connectez-vous)\b|"
+    r"\b(system prompt|prompt système|assistant ?:|<\/?(system|instructions?)>))",
+    re.IGNORECASE)
+
 
 @dataclass
 class Check:
@@ -105,6 +114,7 @@ class Check:
     bad_numbers: list[str]
     bad_citations: list[str]
     causal: list[str]
+    injection: list[str] = field(default_factory=list)
 
     def feedback(self) -> str:
         parts = []
@@ -115,6 +125,9 @@ class Check:
         if self.causal:
             parts.append("Formulations causales à remplacer par des formulations d'association : "
                          + ", ".join(sorted(set(self.causal))[:10]))
+        if self.injection:
+            parts.append("Liens, adresses ou consignes au lecteur interdits (à supprimer) : "
+                         + ", ".join(sorted(set(self.injection))[:5]))
         return "\n".join(parts)
 
 
@@ -122,7 +135,9 @@ def check(text: str, allowed: Allowed, causal_ok: bool = False) -> Check:
     bad = [tok for tok, v, dec in numbers_in(text) if not allowed.number_ok(v, dec)]
     bad_c = [f"{n} ({y})" for n, y in citations_in(text) if (_norm(n), y[:4]) not in allowed.citations]
     causal = [] if causal_ok else [m.group(0) for m in CAUSAL_RE.finditer(text)]
-    return Check(ok=not bad and not bad_c and not causal, bad_numbers=bad, bad_citations=bad_c, causal=causal)
+    inj = [m.group(0)[:60] for m in INJECTION_RE.finditer(text)]
+    return Check(ok=not bad and not bad_c and not causal and not inj, bad_numbers=bad, bad_citations=bad_c,
+                 causal=causal, injection=inj)
 
 
 def clean_markdown(text: str) -> str:

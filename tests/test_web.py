@@ -119,7 +119,20 @@ def test_verrouillage_apres_echecs(app):
     for _ in range(5):
         c.post("/connexion", data={"csrf": t, "username": "ariel", "password": "mauvais"})
     r = c.post("/connexion", data={"csrf": t, "username": "ariel", "password": PWD})
-    assert r.status_code == 401 and "verrouillé" in r.text
+    assert r.status_code == 401 and "patientez" in r.text
+    # Un compte inexistant reçoit exactement la même réponse : rien ne révèle quels comptes existent
+    c3 = TestClient(app, base_url="http://localhost", client=("10.0.0.9", 50000))
+    t3 = csrf(c3.get("/connexion").text)
+    for _ in range(5):
+        c3.post("/connexion", data={"csrf": t3, "username": "fantome", "password": "mauvais"})
+    r2 = c3.post("/connexion", data={"csrf": t3, "username": "fantome", "password": PWD})
+    assert r2.status_code == 401 and "patientez" in r2.text
+    # Depuis une autre adresse, le titulaire légitime n'est pas bloqué par les échecs d'un tiers
+    autre = TestClient(app, base_url="http://localhost", client=("10.0.0.5", 50000))
+    r = autre.get("/connexion")
+    r = autre.post("/connexion", data={"csrf": csrf(r.text), "username": "ariel", "password": PWD},
+                   follow_redirects=False)
+    assert r.status_code == 303
 
 
 def test_pages_protegees_et_hote(app):

@@ -422,9 +422,9 @@ def export_tables_xlsx(tables: list[Table], out: Path, auteur: str = "", titre_d
     ws0.title = "Sommaire"
     ws0.append(["N°", "Tableau"])
     for i, t in enumerate(tables, start=1):
-        ws0.append([i, t.title])
+        ws0.append([i, _safe_cell(t.title)])
         ws = wb.create_sheet(f"T{i}")
-        ws.append([t.title])
+        ws.append([_safe_cell(t.title)])
         ws["A1"].font = Font(bold=True)
         ws.append([])
         ws.append([_safe_cell(c) for c in t.data.columns])
@@ -447,6 +447,6 @@ def export_tables_xlsx(tables: list[Table], out: Path, auteur: str = "", titre_d
 def _safe_cell(v) -> str:
     """Neutralise l'injection de formules dans les tableurs (CSV/Excel injection)."""
     s = "" if v is None else str(v)
-    if s[:1] in ("=", "+", "-", "@", "\t", "\r") and not re.match(r"^-?\d", s):
+    if s[:1] in ("=", "+", "-", "@", "\t", "\r", "|") and not re.fullmatch(r"-?[\d\s.,\u202f\u00a0]+%?", s):
         return "'" + s
     return s

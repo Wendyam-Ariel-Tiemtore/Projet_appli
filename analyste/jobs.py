@@ -134,9 +134,23 @@ class ProjectStore:
         return None
 
     # --- Exécution -------------------------------------------------------
-    def submit(self, pid: str, user_id: int, provider_factory) -> None:
-        self.update(pid, status="en_cours", progress=1, message="Analyse en file d'attente")
+    def submit(self, pid: str, user_id: int, provider_factory) -> str:
+        """Met l'analyse en file ; renvoie un motif de refus (chaîne vide si acceptée)."""
+        with self.lock:
+            with self.db.session() as s:
+                en_cours = s.scalars(select(Project).where(Project.status == "en_cours")).all()
+                if any(p.id == pid for p in en_cours):
+                    return "Une analyse de ce projet est déjà en cours."
+                if sum(p.owner_id == user_id for p in en_cours) >= self.settings.analyses_par_utilisateur:
+                    return ("Une autre de vos analyses est en cours. Attendez qu'elle se termine avant d'en lancer "
+                            "une nouvelle.")
+                if len(en_cours) >= self.settings.file_attente_max:
+                    return "Le serveur traite déjà de nombreuses analyses. Réessayez dans quelques minutes."
+                p = s.get(Project, pid)
+                p.status, p.progress, p.message, p.updated_at = "en_cours", 1, "Analyse en file d'attente", utcnow()
+                s.commit()
         self.pool.submit(self._run, pid, user_id, provider_factory)
+        return ""
 
     def _run(self, pid: str, user_id: int, provider_factory) -> None:
         from .pipeline import AnalysisConfig, run
@@ -156,7 +170,14 @@ class ProjectStore:
             def progress(pct: int, msg: str) -> None:
                 self.update(pid, progress=int(pct), message=msg[:300])
 
-            out = run(ds, cfg, spec, tmp / "sortie", self.settings, self.pseudo_secret(p), progress, provider)
+            if self.settings.isolation_processus:
+                from .isolation import executer
+                out = executer(run, (ds, cfg, spec, tmp / "sortie", self.settings, self.pseudo_secret(p)),
+                               {"provider": provider}, progression=progress,
+                               delai_s=self.settings.duree_max_analyse_minutes * 60,
+                               memoire_mo=self.settings.memoire_max_analyse_mo)
+            else:
+                out = run(ds, cfg, spec, tmp / "sortie", self.settings, self.pseudo_secret(p), progress, provider)
             res_dir = self.root / pid / "resultats"
             if res_dir.exists():
                 crypto.shred_dir(res_dir)
@@ -182,12 +203,23 @@ class ProjectStore:
             self.update(pid, status="erreur", message=_user_message(exc))
             self.db.audit("analyse_echec", user_id=user_id, project_id=pid, detail=type(exc).__name__)
         finally:
+            try:
+                crypto.shred_dir(tmp)  # copies de travail en clair : écrasées avant suppression
+            except Exception:  # noqa: BLE001
+                log.warning("Effacement sécurisé du dossier de travail impossible ; suppression simple.")
             shutil.rmtree(tmp, ignore_errors=True)
 
 
 def _user_message(exc: Exception) -> str:
+    from .isolation import DelaiDepasse, MemoireDepassee
     from .stats.io import DataReadError
     if isinstance(exc, DataReadError):
         return str(exc)
+    if isinstance(exc, DelaiDepasse):
+        return ("L'analyse a dépassé la durée maximale autorisée et a été arrêtée. Réduisez le nombre de variables "
+                "ou d'analyses demandées, puis relancez.")
+    if isinstance(exc, MemoireDepassee):
+        return ("L'analyse a dépassé la mémoire autorisée et a été arrêtée. Réduisez la taille de la base (variables "
+                "inutiles, observations hors champ) ou le nombre d'analyses demandées, puis relancez.")
     return ("L'analyse a échoué. Vérifiez le typage des variables (une variable qualitative déclarée comme continue, "
             "par exemple) et les effectifs par modalité, puis relancez.")

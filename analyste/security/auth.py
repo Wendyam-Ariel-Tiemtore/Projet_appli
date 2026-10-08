@@ -61,23 +61,18 @@ class Auth:
     def authenticate(self, username: str, password: str) -> tuple[User | None, str]:
         with self.db.session() as s:
             u = s.scalar(select(User).where(User.username == username))
-            now = utcnow()
             if u is None:
                 try:  # temps constant : ne pas révéler l'existence du compte
                     HASHER.verify(DUMMY_HASH, password)
                 except (VerifyMismatchError, VerificationError, InvalidHashError):
                     pass
                 return None, "Identifiant ou mot de passe incorrect."
-            if u.locked_until and u.locked_until > now:
-                return None, ("Compte temporairement verrouillé après plusieurs échecs. Réessayez dans "
-                              f"{self.settings.login_lock_minutes} minutes.")
+            # Le blocage après échecs est géré par l'application, par compte et par adresse : un tiers ne peut
+            # ni verrouiller le compte d'autrui ni savoir, par le message ou le temps de réponse, s'il existe.
             try:
                 HASHER.verify(u.password_hash, password)
             except (VerifyMismatchError, VerificationError, InvalidHashError):
                 u.failed_attempts += 1
-                if u.failed_attempts >= self.settings.login_max_attempts:
-                    u.locked_until = now + timedelta(minutes=self.settings.login_lock_minutes)
-                    u.failed_attempts = 0
                 s.commit()
                 return None, "Identifiant ou mot de passe incorrect."
             if HASHER.check_needs_rehash(u.password_hash):
@@ -110,7 +105,20 @@ class Auth:
             s.commit()
         return token
 
-    def resolve(self, token: str | None) -> tuple[User, SessionRow] | None:
+    def verifier_mot_de_passe(self, user_id: int, password: str) -> bool:
+        with self.db.session() as s:
+            u = s.get(User, user_id)
+            try:
+                return u is not None and HASHER.verify(u.password_hash, password[:256])
+            except (VerifyMismatchError, VerificationError, InvalidHashError):
+                return False
+
+    def fermer_sessions(self, user_id: int) -> None:
+        with self.db.session() as s:
+            s.execute(delete(SessionRow).where(SessionRow.user_id == user_id))
+            s.commit()
+
+    def resolve(self, token: str | None, touch: bool = True) -> tuple[User, SessionRow] | None:
         if not token or len(token) > 100:
             return None
         now = utcnow()
@@ -124,7 +132,8 @@ class Auth:
                 s.delete(row)
                 s.commit()
                 return None
-            row.last_seen = now
+            if touch:  # le suivi automatique de l'avancement ne prolonge pas une session inactive
+                row.last_seen = now
             user = s.get(User, row.user_id)
             s.commit()
             if user is None:

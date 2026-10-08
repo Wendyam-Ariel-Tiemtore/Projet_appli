@@ -10,11 +10,13 @@ import time
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, select
+from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -25,7 +27,7 @@ from ..literature.sources import build_query
 from ..pipeline import AnalysisConfig, apply_overrides
 from ..security import crypto
 from ..security.auth import COOKIE, USERNAME_RE, Auth, csrf_ok, password_problems
-from ..security.web import OriginCheck, RateLimiter, SecurityHeaders, UploadError, validate_upload
+from ..security.web import LimiteCorps, OriginCheck, RateLimiter, SecurityHeaders, UploadError, cle_reseau, validate_upload
 from ..stats.audit import detect_identifiers
 from ..stats.io import KINDS, DataReadError
 from ..writing import presentation as presentation_opts
@@ -82,9 +84,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                  settings=settings, P=presentation_opts, ANALYSES_LIBELLES=ANALYSES_LIBELLES)
 
     app = FastAPI(title="Analyste académique", docs_url=None, redoc_url=None, openapi_url=None)
-    app.add_middleware(SecurityHeaders, https=settings.https)
+    # Ordre : le dernier ajouté est le plus extérieur. Les en-têtes de sécurité couvrent ainsi aussi les refus.
     app.add_middleware(OriginCheck)
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts + ["testserver"])
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+    app.add_middleware(LimiteCorps, max_bytes=(settings.max_upload_mb + 1) * 1024 * 1024,
+                       volumineux=("/projets/nouveau",))
+    app.add_middleware(SecurityHeaders, https=settings.https)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     app.state.store, app.state.db, app.state.auth = store, db, auth
 
@@ -104,11 +109,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # --- Outils ----------------------------------------------------------
     def ip(request: Request) -> str:
-        return request.client.host if request.client else "inconnu"
+        return cle_reseau(request.client.host) if request.client else "inconnu"
 
-    def ctx(request: Request) -> Ctx:
-        token = request.cookies.get(COOKIE)
-        res = auth.resolve(token)
+    # Préfixe « __Host- » : le cookie ne peut être ni posé ni écrasé par un sous-domaine (exige HTTPS).
+    cookie_session = ("__Host-" if settings.https else "") + COOKIE
+    cookie_pre = ("__Host-" if settings.https else "") + "aa_pre"
+    verrou_installation = threading.Lock()
+
+    def ctx(request: Request, touch: bool = True) -> Ctx:
+        token = request.cookies.get(cookie_session)
+        res = auth.resolve(token, touch=touch)
         if res is None:
             raise LoginRequired
         return Ctx(res[0], res[1], token)
@@ -120,21 +130,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return None
 
     def render(request: Request, name: str, c: Ctx | None = None, status: int = 200, **kw) -> HTMLResponse:
-        pre = request.cookies.get("aa_pre") or secrets.token_urlsafe(24)
+        pre = request.cookies.get(cookie_pre) or secrets.token_urlsafe(24)
         resp = templates.TemplateResponse(request, name, {"user": c.user if c else None,
                                                           "csrf": c.sess.csrf if c else pre, **kw},
                                           status_code=status)
-        if not c and not request.cookies.get("aa_pre"):
-            resp.set_cookie("aa_pre", pre, httponly=True, secure=settings.https, samesite="strict", max_age=3600)
+        if not c and not request.cookies.get(cookie_pre):
+            resp.set_cookie(cookie_pre, pre, httponly=True, secure=settings.https, samesite="strict", path="/",
+                            max_age=3600)
         return resp
 
     def check_csrf(request: Request, c: Ctx | None, token: str | None) -> None:
-        expected = c.sess.csrf if c else request.cookies.get("aa_pre", "")
+        expected = c.sess.csrf if c else request.cookies.get(cookie_pre, "")
         if not expected or not csrf_ok(expected, token):
             raise StarletteHTTPException(403, "Jeton de sécurité invalide ou expiré. Rechargez la page.")
 
     def set_session_cookie(resp: Response, token: str) -> None:
-        resp.set_cookie(COOKIE, token, httponly=True, secure=settings.https, samesite="strict", path="/",
+        resp.set_cookie(cookie_session, token, httponly=True, secure=settings.https, samesite="strict", path="/",
                         max_age=settings.session_max_hours * 3600)
 
     def redirect(url: str) -> RedirectResponse:
@@ -149,7 +160,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException):
-        msg = exc.detail if isinstance(exc.detail, str) and exc.status_code in (400, 403, 413, 429) else \
+        msg = exc.detail if isinstance(exc.detail, str) and exc.status_code in (400, 403, 409, 413, 429) else \
             {404: "Page introuvable.", 405: "Méthode non autorisée."}.get(exc.status_code, "Erreur.")
         return render(request, "erreur.html", maybe_ctx(request), status=exc.status_code, message=msg,
                       code=exc.status_code)
@@ -166,11 +177,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse({"etat": "ok"})
 
     # --- Installation et authentification -------------------------------
+    # Code d'installation : exigé dès que l'application répond à un autre nom que la machine locale (serveur).
+    locaux = {"localhost", "127.0.0.1", "::1", "[::1]"}
+    jeton_installation = settings.setup_token
+    if not jeton_installation and set(settings.allowed_hosts) - locaux and db.user_count() == 0:
+        jeton_installation = ensure_secret_file(settings.data_dir / "secrets" / "code_installation", 9).hex()
+        log.warning("Code d'installation du compte administrateur : %s", jeton_installation)
+
     @app.get("/installation", response_class=HTMLResponse)
     def installation(request: Request):
         if db.user_count() > 0:
             return redirect("/connexion")
-        return render(request, "installation.html")
+        return render(request, "installation.html", code_requis=bool(jeton_installation))
 
     @app.post("/installation")
     def installation_post(request: Request, csrf: str = Form(""), username: str = Form(""),
@@ -181,11 +199,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not limiter.allow(f"install:{ip(request)}", 10, 600):
             raise StarletteHTTPException(429, "Trop de tentatives. Patientez quelques minutes.")
         errors = _account_errors(username, password, password2)
-        if settings.setup_token and not csrf_ok(settings.setup_token, jeton.strip()):
-            errors.append("Code d'installation incorrect (voir la variable ANALYSTE_SETUP_TOKEN).")
+        if jeton_installation and not csrf_ok(jeton_installation, jeton.strip()):
+            errors.append("Code d'installation incorrect.")
         if errors:
-            return render(request, "installation.html", status=400, errors=errors, username=username)
-        u = auth.create_user(username, password, is_admin=True)
+            return render(request, "installation.html", status=400, errors=errors, username=username,
+                          code_requis=bool(jeton_installation))
+        with verrou_installation:  # vérification et création indissociables : un seul administrateur initial
+            if db.user_count() > 0:
+                return redirect("/connexion")
+            u = auth.create_user(username, password, is_admin=True)
         db.audit("creation_administrateur", user_id=u.id)
         resp = redirect("/")
         set_session_cookie(resp, auth.open_session(u.id))
@@ -205,11 +227,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not limiter.allow(f"login:{ip(request)}", 10, 300):
             return render(request, "connexion.html", status=429,
                           errors=["Trop de tentatives depuis cette adresse. Patientez quelques minutes."])
-        u, err = auth.authenticate(username.strip()[:64], password[:256])
+        ident = username.strip()[:64]
+        k_ip, k_compte = f"echec:{ident.lower()}:{ip(request)}", f"echec:{ident.lower()}"
+        if limiter.depasse(k_ip, settings.login_max_attempts, settings.login_lock_minutes * 60) or \
+                limiter.depasse(k_compte, 50, 3600):
+            auth.authenticate("", password[:256])  # même coût de calcul : rien ne distingue ce cas
+            return render(request, "connexion.html", status=401, username=username,
+                          errors=["Identifiant ou mot de passe incorrect. Après plusieurs échecs, patientez "
+                                  f"{settings.login_lock_minutes} minutes avant de réessayer."])
+        u, err = auth.authenticate(ident, password[:256])
         if u is None:
-            db.audit("connexion_echec", detail=f"identifiant={username[:32]!r}")
+            limiter.noter(k_ip)
+            limiter.noter(k_compte)
+            db.audit("connexion_echec")  # l'identifiant saisi n'est pas journalisé (il contient parfois un mot de passe)
             return render(request, "connexion.html", status=401, errors=[err], username=username)
-        old = request.cookies.get(COOKIE)
+        limiter.oublier(k_ip)
+        old = request.cookies.get(cookie_session)
         auth.close_session(old)  # rotation de session
         resp = redirect("/")
         set_session_cookie(resp, auth.open_session(u.id))
@@ -222,7 +255,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         check_csrf(request, c, csrf)
         auth.close_session(c.token)
         resp = redirect("/connexion")
-        resp.delete_cookie(COOKIE, path="/")
+        resp.delete_cookie(cookie_session, path="/", secure=settings.https, httponly=True, samesite="strict")
         return resp
 
     @app.get("/inscription", response_class=HTMLResponse)
@@ -266,10 +299,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return render(request, "nouveau.html", ctx(request))
 
     @app.post("/projets/nouveau")
-    async def nouveau_post(request: Request, csrf: str = Form(""), nom: str = Form(""),
-                           fichier: UploadFile = File(...)):
-        c = ctx(request)
-        check_csrf(request, c, csrf)
+    async def nouveau_post(request: Request):
+        c = ctx(request)  # authentification avant toute lecture du corps de la requête
+        form = await request.form(max_files=1, max_fields=10, max_part_size=64 * 1024)
+        check_csrf(request, c, form.get("csrf"))
+        nom = str(form.get("nom", ""))[:200]
+        fichier = form.get("fichier")
+        if not isinstance(fichier, StarletteUploadFile):
+            return render(request, "nouveau.html", c, status=400, errors=["Aucun fichier reçu."], nom=nom)
         if not limiter.allow(f"upload:{c.user.id}", 30, 3600):
             raise StarletteHTTPException(429, "Trop de dépôts en une heure. Réessayez plus tard.")
         max_bytes = settings.max_upload_mb * 1024 * 1024
@@ -282,7 +319,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         del raw
         p = store.get(pid, c.user)
         try:
-            ds = store.load_dataset(p)
+            ds = await run_in_threadpool(store.load_dataset, p)
         except DataReadError as exc:
             store.delete(pid)
             return render(request, "nouveau.html", c, status=400, errors=[str(exc)], nom=nom)
@@ -332,9 +369,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/projets/{pid}/variables")
     async def variables_post(request: Request, pid: str):
         c, p = project_or_404(request, pid)
-        form = await request.form()
+        form = await request.form(max_fields=60_000, max_files=0, max_part_size=64 * 1024)
         check_csrf(request, c, form.get("csrf"))
-        ds = store.load_dataset(p)
+        ds = await run_in_threadpool(store.load_dataset, p)
         old = AnalysisConfig.from_dict(store.dec(p, p.config_enc, {}))
         cfg = AnalysisConfig(literature=old.literature, keywords=old.keywords, year_from=old.year_from, llm=old.llm,
                              consent_external=old.consent_external, factorial=old.factorial)
@@ -438,8 +475,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/projets/{pid}/demande")
     async def demande_post(request: Request, pid: str):
         c, p = project_or_404(request, pid)
-        form = await request.form()
+        form = await request.form(max_fields=2000, max_files=0, max_part_size=256 * 1024)
         check_csrf(request, c, form.get("csrf"))
+        if p.status == "en_cours":
+            raise StarletteHTTPException(409, "Une analyse de ce projet est déjà en cours.")
         if not limiter.allow(f"run:{c.user.id}", 30, 3600):
             raise StarletteHTTPException(429, "Trop d'analyses lancées en une heure.")
 
@@ -520,7 +559,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 return AnthropicProvider(key, settings.anthropic_model) if key else NoProvider()
             return NoProvider()
 
-        store.submit(pid, user_id, provider_factory)
+        refus = store.submit(pid, user_id, provider_factory)
+        if refus:
+            raise StarletteHTTPException(409, refus)
         db.audit("analyse_lancee", user_id=user_id, project_id=pid,
                  detail=f"type={spec.doc_type}, redaction={cfg.llm}, litterature={cfg.literature}")
         return redirect(f"/projets/{pid}")
@@ -540,7 +581,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/projets/{pid}/etat")
     def etat(request: Request, pid: str):
-        _, p = project_or_404(request, pid)
+        c = ctx(request, touch=False)
+        p = store.get(pid, c.user)
+        if p is None:
+            raise StarletteHTTPException(404)
         return JSONResponse({"statut": p.status, "progression": p.progress, "message": p.message})
 
     @app.get("/projets/{pid}/fichiers/{stor}")
@@ -581,12 +625,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if new != new2:
             return render(request, "parametres.html", c, status=400, has_key=bool(c.user.api_key_enc),
                           errors=["Les deux nouveaux mots de passe ne correspondent pas."])
+        k = f"mdp:{c.user.id}"
+        if not auth.verifier_mot_de_passe(c.user.id, old):
+            limiter.noter(k)
+            if limiter.depasse(k, 5, 900):  # échecs répétés : la session a peut-être été dérobée
+                auth.fermer_sessions(c.user.id)
+                db.audit("sessions_fermees_echecs_mot_de_passe", user_id=c.user.id)
+                resp = redirect("/connexion")
+                resp.delete_cookie(cookie_session, path="/", secure=settings.https, httponly=True, samesite="strict")
+                return resp
+            return render(request, "parametres.html", c, status=400, has_key=bool(c.user.api_key_enc),
+                          errors=["Mot de passe actuel incorrect."])
         err = auth.change_password(c.user.id, old, new)
         if err:
             return render(request, "parametres.html", c, status=400, has_key=bool(c.user.api_key_enc), errors=[err])
         db.audit("changement_mot_de_passe", user_id=c.user.id)
         resp = redirect("/connexion")
-        resp.delete_cookie(COOKIE, path="/")
+        resp.delete_cookie(cookie_session, path="/", secure=settings.https, httponly=True, samesite="strict")
         return resp
 
     @app.post("/parametres/cle-api")
@@ -611,8 +666,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def supprimer_compte(request: Request, csrf: str = Form(""), password: str = Form("")):
         c = ctx(request)
         check_csrf(request, c, csrf)
-        u, err = auth.authenticate(c.user.username, password)
-        if u is None:
+        k = f"mdp:{c.user.id}"
+        if not auth.verifier_mot_de_passe(c.user.id, password):
+            limiter.noter(k)
+            if limiter.depasse(k, 5, 900):
+                auth.fermer_sessions(c.user.id)
+                resp = redirect("/connexion")
+                resp.delete_cookie(cookie_session, path="/", secure=settings.https, httponly=True, samesite="strict")
+                return resp
             return render(request, "parametres.html", c, status=400, has_key=bool(c.user.api_key_enc),
                           errors=["Mot de passe incorrect : le compte n'a pas été supprimé."])
         if c.user.is_admin:
@@ -629,7 +690,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             s.commit()
         db.audit("suppression_compte", user_id=c.user.id)
         resp = redirect("/connexion")
-        resp.delete_cookie(COOKIE, path="/")
+        resp.delete_cookie(cookie_session, path="/", secure=settings.https, httponly=True, samesite="strict")
         return resp
 
     # --- Administration ----------------------------------------------------

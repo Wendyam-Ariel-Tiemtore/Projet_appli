@@ -16,10 +16,10 @@
 	request_body {
 		max_size 64MB
 	}
+	# Les en-têtes de sécurité (CSP, HSTS avec sous-domaines, etc.) sont posés par l'application elle-même.
 	header {
 		-Server
 		-Via
-		Strict-Transport-Security "max-age=63072000"
 	}
 	reverse_proxy app:8000 {
 		header_up X-Forwarded-Proto https

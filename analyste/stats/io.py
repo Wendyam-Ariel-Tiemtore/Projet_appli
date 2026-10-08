@@ -75,6 +75,23 @@ def _decode(raw: bytes) -> str:
     raise DataReadError("Encodage du fichier texte non reconnu.")
 
 
+# Bornes de lecture : un fichier de quelques kilo-octets ne doit pas pouvoir épuiser la mémoire du serveur.
+MAX_COLONNES = 2000
+MAX_LIGNES = 1_000_000
+MAX_CELLULES = 25_000_000
+
+
+def _verifier_forme(lignes: int, colonnes: int) -> None:
+    if colonnes > MAX_COLONNES:
+        raise DataReadError(f"Le tableau compte plus de {MAX_COLONNES} colonnes. Conservez uniquement les variables "
+                            "utiles à l'analyse avant de le déposer.")
+    if lignes > MAX_LIGNES:
+        raise DataReadError(f"Le tableau compte plus de {MAX_LIGNES:,} lignes.".replace(",", "\u202f"))
+    if lignes * max(colonnes, 1) > MAX_CELLULES:
+        raise DataReadError("Le tableau est trop volumineux (lignes × colonnes). Conservez uniquement les variables "
+                            "utiles à l'analyse avant de le déposer.")
+
+
 def _read_delimited(raw: bytes) -> pd.DataFrame:
     text = _decode(raw)
     sample = text[:20000]
@@ -83,22 +100,68 @@ def _read_delimited(raw: bytes) -> pd.DataFrame:
         sep = dialect.delimiter
     except csv.Error:
         sep = ";" if sample.count(";") > sample.count(",") else ","
+    # Contrôle de la forme avant toute lecture complète
+    entete = text[: text.find("\n") if "\n" in text else len(text)]
+    ncol = entete.count(sep) + 1
+    nlig = text.count("\n")
+    _verifier_forme(nlig, ncol)
     # Virgule décimale probable si séparateur « ; » et nombres du type 12,5
     decimal = "," if sep != "," and re.search(r"\d,\d", sample) else "."
-    try:
-        df = pd.read_csv(io.StringIO(text), sep=sep, decimal=decimal, engine="python",
-                         skipinitialspace=True)
-    except Exception as exc:  # noqa: BLE001 - message générique, sans contenu
-        raise DataReadError("Le fichier texte n'a pas pu être lu comme un tableau délimité.") from exc
+    df = None
+    for moteur in ("c", "python"):
+        try:
+            df = pd.read_csv(io.StringIO(text), sep=sep, decimal=decimal, engine=moteur, skipinitialspace=True,
+                             nrows=MAX_LIGNES + 1, low_memory=False) if moteur == "c" else \
+                pd.read_csv(io.StringIO(text), sep=sep, decimal=decimal, engine=moteur, skipinitialspace=True,
+                            nrows=MAX_LIGNES + 1)
+            break
+        except Exception as exc:  # noqa: BLE001 - message générique, sans contenu
+            if moteur == "python":
+                raise DataReadError("Le fichier texte n'a pas pu être lu comme un tableau délimité.") from exc
+    _verifier_forme(len(df), df.shape[1])
     return df
 
 
 def _read_excel(raw: bytes) -> pd.DataFrame:
+    """Lecture en flux de la première feuille, bornée en lignes et en colonnes (pas de matrice creuse géante)."""
+    import openpyxl
+
     try:
-        df = pd.read_excel(io.BytesIO(raw), sheet_name=0, engine="openpyxl")
+        wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
     except Exception as exc:  # noqa: BLE001
         raise DataReadError("Le classeur Excel n'a pas pu être lu (première feuille).") from exc
-    return df
+    try:
+        ws = wb.worksheets[0]
+        lignes: list[list] = []
+        largeur, vides = 0, 0
+        for row in ws.iter_rows(values_only=True):
+            if len(row) > MAX_COLONNES and any(v is not None for v in row[MAX_COLONNES:]):
+                _verifier_forme(0, len(row))
+            row = row[:MAX_COLONNES]
+            if all(v is None for v in row):
+                vides += 1
+                if vides > 10_000:  # longues plages vides : fin utile de la feuille
+                    break
+                continue
+            vides = 0
+            dernier = max(i for i, v in enumerate(row) if v is not None) + 1
+            largeur = max(largeur, dernier)
+            lignes.append(list(row))
+            if len(lignes) > MAX_LIGNES or len(lignes) * largeur > MAX_CELLULES:
+                _verifier_forme(len(lignes), largeur)
+    except DataReadError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise DataReadError("Le classeur Excel n'a pas pu être lu (première feuille).") from exc
+    finally:
+        wb.close()
+    if not lignes:
+        raise DataReadError("La première feuille du classeur est vide.")
+    entete = [("" if v is None else str(v)) for v in lignes[0][:largeur]]
+    entete += [""] * (largeur - len(entete))
+    noms = [h if h.strip() else f"Unnamed: {i}" for i, h in enumerate(entete)]
+    corps = [(r[:largeur] + [None] * (largeur - len(r[:largeur]))) for r in lignes[1:]]
+    return pd.DataFrame(corps, columns=noms)
 
 
 def _read_stat(raw: bytes, suffix: str, workdir: Path):
@@ -106,6 +169,16 @@ def _read_stat(raw: bytes, suffix: str, workdir: Path):
 
     tmp = workdir / f"lecture{suffix}"
     tmp.write_bytes(raw)
+    try:
+        lire = pyreadstat.read_sav if suffix == ".sav" else pyreadstat.read_dta
+        _, entete = lire(str(tmp), metadataonly=True)
+        _verifier_forme(int(entete.number_rows or 0), int(entete.number_columns or 0))
+    except DataReadError:
+        tmp.unlink(missing_ok=True)
+        raise
+    except Exception as exc:  # noqa: BLE001
+        tmp.unlink(missing_ok=True)
+        raise DataReadError("Le fichier SPSS/Stata n'a pas pu être lu.") from exc
     try:
         if suffix == ".sav":
             df, meta = pyreadstat.read_sav(str(tmp), apply_value_formats=False)
