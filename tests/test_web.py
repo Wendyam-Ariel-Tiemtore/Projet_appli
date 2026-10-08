@@ -163,3 +163,20 @@ def test_code_installation_exige(tmp_path):
     r = c.post("/installation", data={"csrf": csrf(r.text), "username": "admin1", "password": PWD, "password2": PWD,
                                       "jeton": "code-secret"}, follow_redirects=False)
     assert r.status_code == 303
+
+
+def test_pages_legales_et_application_installable(app):
+    c = TestClient(app, base_url="http://localhost")
+    for page, mot in (("/mentions-legales", "Éditeur"), ("/cgu", "Responsabilité"), ("/cgv", "rétractation"),
+                      ("/confidentialite", "Autorité de contrôle"), ("/a-propos", "Tous droits réservés"),
+                      ("/composants", "statsmodels"), ("/lexique", "Rapport de cotes"), ("/hors-ligne", "hors connexion")):
+        r = c.get(page)
+        assert r.status_code == 200 and mot.lower() in r.text.lower(), page
+    r = c.get("/manifest.webmanifest")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("application/manifest+json")
+    assert r.json()["start_url"] == "/" and any(i["purpose"] == "maskable" for i in r.json()["icons"])
+    r = c.get("/sw.js")
+    assert r.status_code == 200 and "javascript" in r.headers["content-type"]
+    assert r.headers["service-worker-allowed"] == "/"
+    assert "worker-src 'self'" in r.headers["content-security-policy"]
+    assert 'rel="manifest"' in c.get("/connexion").text

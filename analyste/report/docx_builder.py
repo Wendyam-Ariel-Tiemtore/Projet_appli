@@ -367,12 +367,15 @@ def build_docx(document: Document, out: Path) -> Path:
 
 
 def _proprietes(cp, titre_doc: str, auteur: str) -> None:
-    """Métadonnées du fichier : celles de l'auteur, sans mention de la bibliothèque qui l'a produit."""
+    """Métadonnées du fichier : celles de l'auteur, et la signature de l'application qui l'a produit."""
     from datetime import UTC, datetime
+
+    from .. import __copyright__, __version__
     maintenant = datetime.now(UTC).replace(microsecond=0)
     cp.title = (titre_doc or "")[:250]
     cp.author = cp.last_modified_by = (auteur or "")[:120]
-    cp.comments = cp.subject = cp.keywords = cp.category = ""
+    cp.subject = cp.keywords = cp.category = ""
+    cp.comments = f"Produit avec Analyste académique {__version__}. Application {__copyright__}"
     cp.created = cp.modified = maintenant
     cp.revision = 1
 

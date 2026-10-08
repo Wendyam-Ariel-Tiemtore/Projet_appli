@@ -1,5 +1,7 @@
 # Guide de déploiement
 
+> Vous débutez avec Git, Docker ou les serveurs ? Suivez plutôt le [guide pas à pas](/guide) (fichier `docs/GUIDE-PAS-A-PAS.md`), qui détaille chaque commande, le durcissement automatique du serveur (`deploy/preparer_serveur.sh`) et les sauvegardes chiffrées (`deploy/sauvegarder.sh`).
+
 ## 1. Sur votre ordinateur (usage personnel)
 
 Suivre la section « Installation » du [README](../README.md). Par défaut, l'application n'écoute que sur `127.0.0.1` : elle n'est pas joignable depuis le réseau.
@@ -64,6 +66,9 @@ Pour des données particulièrement sensibles :
 networks:
   reseau:
     internal: true
+    ipam:
+      config:
+        - subnet: 172.30.57.0/24
 ```
 
 Avec un réseau interne, Caddy ne peut plus obtenir de certificat Let's Encrypt : conserver `TLS_MODE=internal`. Les images Docker et le modèle Ollama doivent être téléchargés avant de couper l'accès.

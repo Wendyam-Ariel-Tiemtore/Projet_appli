@@ -13,7 +13,8 @@ from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response
 
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; "
-       "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; "
+       "connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
+       "form-action 'self'; object-src 'none'; "
        "upgrade-insecure-requests")
 
 
@@ -34,11 +35,12 @@ class SecurityHeaders(BaseHTTPMiddleware):
         h["Cross-Origin-Opener-Policy"] = "same-origin"
         h["Cross-Origin-Resource-Policy"] = "same-origin"
         h["X-Permitted-Cross-Domain-Policies"] = "none"
-        if not request.url.path.startswith("/static/"):
+        if not request.url.path.startswith("/static/") and "cache-control" not in h:
             h["Cache-Control"] = "no-store, max-age=0"
             h["Pragma"] = "no-cache"
         if self.https:
-            h["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+            # Sans includeSubDomains : les autres sous-domaines restent libres
+            h["Strict-Transport-Security"] = "max-age=63072000"
         if "server" in h:
             del h["server"]
         return response

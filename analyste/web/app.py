@@ -742,7 +742,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # --- Pages d'aide --------------------------------------------------------
     pages = {"aide": ("FAQ.md", "Aide et questions fréquentes"),
              "confidentialite": ("CONFIDENTIALITE.md", "Confidentialité"),
-             "securite": ("SECURITE.md", "Sécurité"), "methodologie": ("METHODOLOGIE.md", "Guide méthodologique")}
+             "securite": ("SECURITE.md", "Sécurité"), "methodologie": ("METHODOLOGIE.md", "Guide méthodologique"),
+             "mentions-legales": ("MENTIONS_LEGALES.md", "Mentions légales"),
+             "cgu": ("CGU.md", "Conditions générales d'utilisation"),
+             "cgv": ("CGV.md", "Conditions générales de vente"),
+             "guide": ("GUIDE-PAS-A-PAS.md", "Guide pas à pas : installer, publier, distribuer"),
+             "composants": ("../THIRD_PARTY_NOTICES.md", "Composants tiers")}
+
+    # --- Application installable (téléphone, tablette, ordinateur) -------------------------------------
+    @app.get("/sw.js")
+    def service_worker():
+        return Response((HERE / "static" / "sw.js").read_bytes(), media_type="text/javascript",
+                        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
+
+    @app.get("/manifest.webmanifest")
+    def manifeste():
+        return Response((HERE / "static" / "manifest.webmanifest").read_bytes(),
+                        media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=3600"})
+
+    @app.get("/.well-known/assetlinks.json")
+    def assetlinks():
+        # Lien de confiance entre le site et l'application Android publiée sur Google Play
+        if not settings.android_assetlinks.strip():
+            raise StarletteHTTPException(404)
+        try:
+            contenu = json.loads(settings.android_assetlinks)
+        except json.JSONDecodeError:
+            raise StarletteHTTPException(404) from None
+        return JSONResponse(contenu, headers={"Cache-Control": "public, max-age=3600"})
+
+    @app.get("/hors-ligne", response_class=HTMLResponse)
+    def hors_ligne(request: Request):
+        return render(request, "hors_ligne.html", None)
+
+    @app.get("/a-propos", response_class=HTMLResponse)
+    def a_propos(request: Request):
+        from .. import __auteur__, __copyright__, __version__
+        licence = HERE.parent.parent / "LICENSE"
+        return render(request, "a_propos.html", maybe_ctx(request), version=__version__, auteur=__auteur__,
+                      copyright=__copyright__,
+                      licence=licence.read_text(encoding="utf-8") if licence.exists() else "")
 
     @app.get("/lexique", response_class=HTMLResponse)
     def lexique(request: Request):

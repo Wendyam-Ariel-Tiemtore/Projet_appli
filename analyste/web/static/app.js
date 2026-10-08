@@ -67,4 +67,11 @@
       if (!window.confirm(f.getAttribute("data-confirmer"))) ev.preventDefault();
     });
   });
+
+  // Application installable : enregistrement du service worker (contextes sécurisés uniquement)
+  if ("serviceWorker" in navigator && window.isSecureContext) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () { /* facultatif */ });
+    });
+  }
 })();

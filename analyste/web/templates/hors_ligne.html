@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block titre %}Hors connexion{% endblock %}
+{% block largeur %}etroit{% endblock %}
+{% block contenu %}
+<h1>Vous êtes hors connexion</h1>
+<p class="chapeau">L'application a besoin d'une connexion au serveur pour ouvrir vos projets et lancer les analyses. Vos données ne sont jamais conservées sur cet appareil.</p>
+<p>Vérifiez votre connexion internet (ou, pour une installation locale, que Docker est bien démarré), puis rechargez la page.</p>
+<div class="actions"><a class="bouton" href="/">Réessayer</a></div>
+{% endblock %}

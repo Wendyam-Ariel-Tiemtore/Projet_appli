@@ -209,3 +209,14 @@ progress { width: 100%; height: 0.9rem; accent-color: var(--sarcelle); }
 .etat--ko { color: var(--alerte); }
 .lexique dt { font-weight: 700; margin-top: 1rem; font-family: var(--serif); }
 .lexique dd { margin: 0.2rem 0 0; color: var(--encre); max-width: 70ch; }
+.licence { white-space: pre-wrap; font-family: var(--mono); font-size: 0.82rem; background: #f0f3f8; padding: 1rem; }
+.doc th[scope="row"] { width: 14rem; }
+/* Téléphone : en-tête compact, parcours lisible */
+@media (max-width: 600px) {
+  .entete__interieur { gap: 0.4rem; padding: 0.7rem 1rem; }
+  .nav { gap: 0.3rem 0.9rem; margin-left: 0; }
+  .nav a, .lien-bouton { font-size: 0.88rem; }
+  .parcours li { font-size: 0.74rem; padding-right: 0.2rem; hyphens: auto; }
+  main { padding: 1.25rem 1rem 3rem; }
+  h1 { font-size: 1.6rem; }
+}

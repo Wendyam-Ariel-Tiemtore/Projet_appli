@@ -98,6 +98,26 @@ Oui. À l'étape « Demande », vous choisissez les analyses à conduire (bivari
 | Modèle local (Ollama) | Sur la machine | Rien | Dépend du modèle installé et de la puissance de l'ordinateur |
 | Claude (API Anthropic) | Chez Anthropic | Résultats agrégés et texte de cadrage, jamais les données individuelles | La plus élevée |
 
+### Puis-je indiquer mes hypothèses de recherche ?
+
+Oui. Dans l'étape « Demande », saisissez jusqu'à six hypothèses, chacune en une phrase. Pour chacune, vous pouvez préciser la variable concernée et le sens attendu (association positive, négative ou simple association) ; sinon, l'application les déduit de la phrase. Le document comporte une section qui confronte chaque hypothèse aux résultats et conclut : confirmée, partiellement confirmée, non confirmée, infirmée ou non vérifiable.
+
+### Comment savoir si je peux faire confiance aux résultats ?
+
+La section « Fiabilité des résultats » du document, et l'encadré « Ce qu'il faut retenir » de la page du projet, passent en revue une dizaine de contrôles : taille de l'échantillon, valeurs manquantes, stabilité des coefficients, ajustement, sur-ajustement mesuré par bootstrap, comparaison avec un modèle d'apprentissage automatique, recherche d'effets non linéaires et d'interactions, nombre de contextes. Chaque contrôle est expliqué en une phrase simple et une appréciation globale est donnée. Elle aide à juger la solidité des résultats ; elle ne remplace pas votre regard critique.
+
+### Je ne connais pas la statistique : vais-je comprendre le document ?
+
+Le document contient une annexe « Lecture des résultats en langage simple » et un lexique des seules notions employées. La page [Lexique](/lexique) explique aussi chaque terme sans jargon. Pour une soutenance, faites relire l'interprétation par votre encadrant.
+
+### Que se passe-t-il si une modalité prédit parfaitement l'événement ?
+
+C'est la « séparation », qui fait échouer la régression logistique classique. L'application la détecte et applique automatiquement la méthode de Firth, qui donne des estimations fiables ; le document le signale.
+
+### Puis-je installer l'application sur mon téléphone ou mon ordinateur ?
+
+Oui, depuis le navigateur : sur Android, menu puis « Installer l'application » ; sur iPhone, bouton Partager puis « Sur l'écran d'accueil » ; sur ordinateur, icône « Installer » dans la barre d'adresse de Chrome ou Edge. Aucune donnée n'est conservée sur l'appareil.
+
 ## Confidentialité
 
 ### Mes données sortent-elles de ma machine ?
@@ -118,9 +138,21 @@ Le second message apparaît quand on ouvre `http://127.0.0.1:443` : il faut tape
 
 Le certificat provient de l'autorité locale de votre installation, que le navigateur ne connaît pas encore. Lancez `scripts\faire_confiance.ps1` (Windows) ou `scripts/faire_confiance.sh` (macOS, Linux) depuis le dossier du projet, puis rouvrez le navigateur.
 
+### « Le tableau compte plus de 2 000 colonnes » ou « est trop volumineux »
+
+Pour protéger le serveur, la taille des tableaux est bornée (2 000 colonnes, 1 000 000 de lignes, 25 millions de cellules). Les bases d'enquêtes nationales comptent souvent des milliers de variables : conservez uniquement celles utiles à votre analyse (dans Stata : `keep`, dans SPSS : « Enregistrer sous » en choisissant les variables) avant le dépôt.
+
+### « Une autre de vos analyses est en cours »
+
+Une seule analyse à la fois est possible par compte. Attendez la fin de l'analyse en cours (la page du projet affiche son avancement), puis relancez.
+
+### « L'analyse a dépassé la durée maximale » ou « la mémoire autorisée »
+
+L'analyse a été arrêtée pour ne pas bloquer le serveur. Réduisez le nombre de variables ou d'analyses demandées (les analyses factorielles et la typologie sont les plus coûteuses sur de grandes bases), puis relancez. L'administrateur peut relever ces limites (`ANALYSTE_DUREE_MAX_ANALYSE_MINUTES`, `ANALYSTE_MEMOIRE_MAX_ANALYSE_MO`).
+
 ### « L'analyse a échoué »
 
-Causes fréquentes : une variable qualitative déclarée comme continue ; une modalité très rare qui empêche l'estimation (séparation parfaite) ; deux variables redondantes (par exemple l'âge et le groupe d'âge dans le même modèle). Vérifiez le typage, regroupez les modalités rares dans votre fichier, retirez les doublons, puis relancez.
+Causes fréquentes : une variable qualitative déclarée comme continue ; une modalité si rare qu'aucun modèle ne peut l'estimer ; deux variables redondantes (par exemple l'âge et le groupe d'âge dans le même modèle). Vérifiez le typage, regroupez les modalités rares dans votre fichier, retirez les doublons, puis relancez.
 
 ### Le sommaire est vide à l'ouverture du document
 

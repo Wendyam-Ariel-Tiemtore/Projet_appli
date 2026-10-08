@@ -1,21 +1,54 @@
-MIT License
+LICENCE PROPRIÉTAIRE « ANALYSTE ACADÉMIQUE »
 
-Copyright (c) 2026 Wendyam Ariel Tiemtoré
+Copyright (c) 2026 Wendyam Ariel Tiemtoré. Tous droits réservés.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. Titularité
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Le logiciel « Analyste académique », comprenant notamment son code source et son code objet, ses modèles de
+documents, ses textes, sa documentation, ses règles de rédaction, son interface graphique, son nom et ses éléments
+visuels (ci-après « le Logiciel »), est une œuvre originale dont Wendyam Ariel Tiemtoré (ci-après « l'Auteur ») est
+seul titulaire de l'ensemble des droits de propriété intellectuelle, en application notamment du Code de la
+propriété intellectuelle français (articles L. 111-1, L. 112-2 et L. 122-6), de la loi burkinabè n° 032-99/AN du
+22 décembre 1999 portant protection de la propriété littéraire et artistique, de l'Accord de Bangui révisé
+(Organisation africaine de la propriété intellectuelle) et de la Convention de Berne.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. Ce qui est interdit sans autorisation écrite préalable de l'Auteur
+
+Toute reproduction, représentation, diffusion, publication, location, prêt, vente, sous-licence, mise à disposition
+en ligne (y compris sous forme de service hébergé), adaptation, traduction, modification, fusion avec un autre
+logiciel, décompilation ou ingénierie inverse du Logiciel, en tout ou partie, par quelque moyen que ce soit, sauf
+dans les limites strictement prévues par la loi (article L. 122-6-1 du Code de la propriété intellectuelle).
+
+La consultation du dépôt de code, lorsque celui-ci est rendu visible, ne confère aucun droit d'utilisation.
+
+3. Ce qui est autorisé
+
+L'utilisation du Logiciel n'est autorisée qu'aux personnes ayant obtenu de l'Auteur une licence d'utilisation, à
+titre gratuit ou onéreux, dans les conditions de cette licence (durée, nombre d'utilisateurs, nombre de postes ou
+d'installations, usage personnel, institutionnel ou commercial) et des conditions générales d'utilisation et, le cas
+échéant, de vente, publiées avec le Logiciel.
+
+4. Documents produits par le Logiciel
+
+Les documents, tableaux, figures et présentations produits par l'utilisateur à l'aide du Logiciel à partir de ses
+propres données appartiennent à l'utilisateur, qui en assume la responsabilité scientifique et l'usage. Les modèles,
+gabarits et textes types intégrés au Logiciel restent la propriété de l'Auteur ; leur réutilisation au sein des
+documents produits est autorisée.
+
+5. Composants tiers
+
+Le Logiciel s'appuie sur des bibliothèques libres (liste et licences dans le fichier THIRD_PARTY_NOTICES.md), qui
+restent soumises à leurs licences respectives. La présente licence ne s'applique qu'aux éléments créés par l'Auteur.
+
+6. Absence de garantie
+
+Le Logiciel est fourni « en l'état ». Dans les limites permises par la loi, l'Auteur ne garantit pas que le Logiciel
+soit exempt d'erreurs ni qu'il convienne à un usage particulier. Les limitations de responsabilité applicables sont
+précisées dans les conditions générales d'utilisation.
+
+7. Sanctions
+
+Toute utilisation non autorisée constitue une contrefaçon susceptible d'engager la responsabilité civile et pénale
+de son auteur.
+
+Contact pour toute demande de licence ou d'autorisation : voir la page « Mentions légales » de l'application.

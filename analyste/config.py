@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     openalex_api_key: str = ""
     openalex_mailto: str = ""
 
+    # Application Android publiée sur Google Play (Trusted Web Activity) : contenu JSON de assetlinks.json
+    android_assetlinks: str = ""
+
     # Calcul
     worker_threads: int = 2
     isolation_processus: bool = True  # chaque analyse dans un processus borné en durée et en mémoire

@@ -19,6 +19,9 @@ Vos données restent sur votre machine : elles sont chiffrées sur le disque, ne
 | Survie | Kaplan-Meier, log-rank, modèle de Cox avec test des risques proportionnels |
 | Littérature | Recherche dans OpenAlex à partir de vos seuls mots-clés, regroupement thématique, tableaux de synthèse, références APA avec DOI |
 | Document | Word avec page de garde, résumé, sommaire, listes des tableaux et graphiques, chapitres selon le type de document, bibliographie, annexes de reproductibilité ; classeur Excel de tous les tableaux ; figures ; paramètres JSON |
+| Hypothèses | Jusqu'à six hypothèses saisies par l'auteur (variable et sens attendu, ou déduction depuis la phrase), confrontées au modèle final : confirmée, partiellement confirmée, non confirmée, infirmée ou non vérifiable |
+| Fiabilité | Bilan chiffré et expliqué : taille, valeurs manquantes, événements par paramètre, VIF, séparation (méthode de Firth si besoin), Hosmer-Lemeshow, validation interne par bootstrap, témoin d'apprentissage automatique en validation croisée par grappes, recherche d'effets non linéaires et d'interactions ; appréciation globale |
+| Lecture simple | Annexe « Lecture des résultats en langage simple », lexique des notions employées, encadré « Ce qu'il faut retenir » sur la page du projet |
 | Présentation (facultatif) | PowerPoint pour une soutenance, une communication scientifique, un séminaire, une restitution professionnelle ou un atelier : durée, déroulé, niveau de détail, graphiques ou tableaux, thème visuel, format 16:9 ou 4:3, notes de l'orateur rédigées, annexes techniques |
 
 Vous choisissez aussi vos méthodes : analyses à conduire, seuil de signification (1, 5 ou 10 %), correction pour les tests multiples (Benjamini et Hochberg, Holm ou aucune) et, si vous le souhaitez, des tests uniquement non paramétriques. Les textes sont rédigés dans le style des mémoires de statistique sociale (voir la section « Style de rédaction » du guide méthodologique).
@@ -112,20 +115,24 @@ Questions fréquentes : [docs/FAQ.md](docs/FAQ.md).
 | Protection | Mise en œuvre |
 |---|---|
 | Transport | HTTPS obligatoire (Caddy, TLS 1.2+), HSTS |
-| Comptes | Argon2id, mots de passe robustes, verrouillage après 5 échecs, sessions côté serveur (cookie `HttpOnly`, `Secure`, `SameSite=Strict`) |
+| Comptes | Argon2id, mots de passe robustes, blocage par compte et par adresse sans révéler l'existence d'un compte, sessions côté serveur (cookie `__Host-`, `HttpOnly`, `Secure`, `SameSite=Strict`), premier administrateur protégé par un code d'installation sur serveur |
+| Analyses | Processus séparé borné en durée et en mémoire, une analyse à la fois par compte, tableaux bornés et lus en flux |
 | Requêtes | Jeton CSRF, contrôle de l'origine, CSP stricte sans script en ligne, en-têtes de sécurité |
 | Fichiers déposés | Liste blanche, vérification de la signature réelle, refus des macros et des bombes de décompression |
 | Données au repos | AES-256-GCM, une clé par projet enveloppée par une clé maîtresse ; effacement cryptographique |
 | Cloisonnement | Chaque utilisateur ne voit que ses projets ; l'administrateur n'a pas accès aux données |
 | Conservation | Purge automatique après 7 jours d'inactivité (configurable) |
 | Conteneur | Utilisateur non privilégié, système de fichiers en lecture seule, capacités retirées |
-| Chaîne logicielle | Dépendances épinglées, `pip-audit`, `bandit`, CodeQL, Dependabot |
+| Chaîne logicielle | Dépendances et actions épinglées, `pip-audit`, `bandit`, CodeQL, Dependabot, versions signées (Sigstore) avec SBOM et attestation de provenance |
+| Audit | Audit offensif indépendant, failles corrigées et couvertes par des tests de non-régression |
 
 Seuls deux échanges peuvent quitter la machine, et uniquement à votre demande : vos **mots-clés** vers OpenAlex pour la revue de littérature, et, si vous choisissez Claude et donnez votre consentement, des **résultats agrégés** vers l'API d'Anthropic pour la rédaction. Les données individuelles ne sont jamais transmises. Détails : [docs/CONFIDENTIALITE.md](docs/CONFIDENTIALITE.md) et [docs/SECURITE.md](docs/SECURITE.md).
 
 ## Configuration
 
 Les réglages se font dans le fichier `.env` (voir [.env.example](.env.example)) : adresse et certificat, inscriptions libres, durée de conservation, taille maximale des fichiers, modèle local, clé et modèle Claude, autorisation des échanges externes. Le guide de déploiement sur serveur est dans [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md).
+
+**Débutant ?** Le [guide pas à pas](docs/GUIDE-PAS-A-PAS.md) explique Git, Docker et VS Code, la mise en ligne sur un serveur durci (script `deploy/preparer_serveur.sh`), les sauvegardes chiffrées, l'installation sur téléphone et ordinateur, la publication sur Google Play et la publication de versions signées.
 
 **Sauvegardez la clé maîtresse** (volume `donnees`, fichier `secrets/cle_maitresse`) : sans elle, aucun projet ne peut être déchiffré.
 
@@ -180,6 +187,10 @@ pip-audit -r requirements.txt
 
 L'application automatise des calculs, une mise en forme et une partie de la rédaction. La démarche scientifique, la problématique et l'interprétation restent celles de l'auteur, qui vérifie chaque résultat et déclare l'usage de l'outil selon les règles de son institution. Une déclaration type figure en annexe de chaque document.
 
+## Documents légaux
+
+[Mentions légales](docs/MENTIONS_LEGALES.md), [conditions générales d'utilisation](docs/CGU.md), [conditions générales de vente](docs/CGV.md), [politique de confidentialité](docs/CONFIDENTIALITE.md), [composants tiers](THIRD_PARTY_NOTICES.md). Ces pages sont aussi accessibles depuis le pied de page de l'application.
+
 ## Licence
 
-[MIT](LICENSE), © 2026 Wendyam Ariel Tiemtoré.
+Logiciel **propriétaire**, © 2026 Wendyam Ariel Tiemtoré, tous droits réservés. Toute utilisation, reproduction ou diffusion est soumise à une licence accordée par l'auteur : voir [LICENSE](LICENSE).

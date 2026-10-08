@@ -1,5 +1,18 @@
 # Journal des modifications
 
+## 1.3.0 : 8 octobre 2026
+
+Fiabilité maximale, hypothèses, langage simple, sécurité renforcée, application installable et cadre légal.
+
+- **Hypothèses de recherche** : saisie guidée (phrase, variable, sens attendu), déduction automatique de la variable et du sens, verdict argumenté pour chacune et tableau récapitulatif.
+- **Fiabilité des résultats** : régression logistique de Firth en cas de séparation ; validation interne par bootstrap (optimisme de l'AUC ou du R², pente de calibration) ; modèle d'apprentissage automatique témoin en validation croisée formée de grappes entières ; recherche systématique d'effets non linéaires (splines cubiques restreintes) et d'interactions avec correction de Holm ; bilan chiffré avec appréciation globale.
+- **Pour les non-spécialistes** : annexe « Lecture des résultats en langage simple », lexique des notions employées, page Lexique, encadré « Ce qu'il faut retenir » et contrôles de fiabilité expliqués sur la page du projet.
+- **Sécurité** (audit offensif) : lecture des fichiers bornée et en flux ; corps des requêtes limité avant lecture ; analyses dans un processus borné en durée et en mémoire, une à la fois par compte ; blocage de connexion par compte et par adresse sans divulgation ; premier administrateur atomique et code d'installation sur serveur ; cookies `__Host-` ; adresse réelle crue seulement depuis le proxy ; garde contre l'injection d'instructions ; actions et images épinglées. Tests de non-régression pour chaque faille.
+- **Application installable** sur téléphone, tablette et ordinateur (manifeste, icônes, service worker limité aux ressources statiques, page hors connexion) ; lien Android pour Google Play.
+- **Cadre légal et signature** : licence propriétaire, mentions légales, CGU, CGV, politique de confidentialité complétée (RGPD et loi burkinabè n° 001-2021/AN), page À propos, composants tiers, signature dans le pied de page et les propriétés des documents.
+- **Publication signée** : image Docker publiée et signée (Sigstore), SBOM, attestation de provenance, archive et empreintes signées.
+- **Guide pas à pas** (Git, Docker, VS Code, serveur durci, sauvegardes chiffrées, téléphone, ordinateur) et scripts `deploy/preparer_serveur.sh`, `deploy/sauvegarder.sh`, `deploy/restaurer.sh`.
+
 ## 1.2.1 : 3 octobre 2026
 
 - Accès par https://127.0.0.1 corrigé : le proxy présente un certificat de l'autorité locale quand le navigateur n'envoie pas de nom de serveur (erreur ERR_SSL_PROTOCOL_ERROR).

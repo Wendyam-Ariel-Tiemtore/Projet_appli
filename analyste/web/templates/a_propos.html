@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titre %}À propos{% endblock %}
+{% block contenu %}
+<article class="doc">
+  <h1>Analyste académique</h1>
+  <p class="chapeau">De la base de données au document académique : analyses statistiques rigoureuses, rédaction dans les règles de l'art, présentation prête pour la soutenance.</p>
+  <table>
+    <tbody>
+      <tr><th scope="row">Version</th><td>{{ version }}</td></tr>
+      <tr><th scope="row">Conception et développement</th><td>{{ auteur }}</td></tr>
+      <tr><th scope="row">Droits</th><td>{{ copyright }}</td></tr>
+      <tr><th scope="row">Licence</th><td>Logiciel propriétaire : usage soumis à licence</td></tr>
+    </tbody>
+  </table>
+  <h2>Ce que garantit l'application</h2>
+  <ul>
+    <li>Aucun chiffre ni aucune référence inventés : chaque résultat provient d'un calcul, chaque référence d'une bibliothèque vérifiée ou d'une base bibliographique.</li>
+    <li>Des contrôles de fiabilité systématiques : conditions d'application, validation interne, comparaison avec un modèle d'apprentissage automatique, recherche d'effets omis.</li>
+    <li>Des données protégées : chiffrement, cloisonnement entre utilisateurs, suppression automatique.</li>
+  </ul>
+  <h2>Documents de référence</h2>
+  <ul>
+    <li><a href="/mentions-legales">Mentions légales</a></li>
+    <li><a href="/cgu">Conditions générales d'utilisation</a> et <a href="/cgv">conditions générales de vente</a></li>
+    <li><a href="/confidentialite">Politique de confidentialité</a> et <a href="/securite">sécurité</a></li>
+    <li><a href="/composants">Composants tiers et leurs licences</a></li>
+  </ul>
+  {% if licence %}
+  <details>
+    <summary>Texte de la licence</summary>
+    <pre class="licence">{{ licence }}</pre>
+  </details>
+  {% endif %}
+</article>
+{% endblock %}

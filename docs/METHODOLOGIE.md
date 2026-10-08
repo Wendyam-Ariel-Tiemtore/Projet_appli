@@ -89,6 +89,32 @@ La forme du modèle découle du type de la variable dépendante. Chaque modèle 
 - VIF > 5 signalé, VIF > 10 qualifié de multicolinéarité forte.
 - Modalité de référence : la plus fréquente par défaut, modifiable.
 - Si une variable de grappe est déclarée sans analyse multi-niveaux, les erreurs types sont robustes à la grappe.
+- **Séparation des données** (une modalité qui connaît toujours, ou jamais, l'événement) : détectée automatiquement ; la régression logistique est alors estimée par la vraisemblance pénalisée de Firth (1993 ; Heinze et Schemper, 2002), qui fournit des estimations finies et peu biaisées. Le document le signale.
+
+### 5.1 Fiabilité des résultats
+
+Une section dédiée évalue la solidité du modèle explicatif à l'aide de critères chiffrés, chacun accompagné d'un repère de la littérature et d'une explication en langage courant. Une appréciation globale en découle (élevée, bonne, satisfaisante ou à interpréter avec prudence).
+
+| Contrôle | Méthode | Repère |
+|---|---|---|
+| Taille et exclusions | Observations analysées, part exclue pour valeurs manquantes | au moins 100 ; moins de 10 % exclues |
+| Stabilité des coefficients | Événements par paramètre (Peduzzi et al., 1996), VIF, séparation | au moins 10 ; VIF < 5 |
+| Ajustement | Hosmer et Lemeshow | p ≥ 0,05 |
+| Sur-ajustement | Validation interne par bootstrap, 200 rééchantillonnages, correction de l'optimisme de l'AUC ou du R² et pente de calibration (Harrell, Lee et Mark, 1996 ; Steyerberg et al., 2001) | optimisme < 0,03 |
+| Pouvoir discriminant | AUC corrigée de l'optimisme | 0,70 et plus : élevé |
+| Effets omis | Modèle d'apprentissage automatique témoin (gradient boosting ; Friedman, 2001) comparé en validation croisée à cinq blocs, **formés de grappes entières** lorsque les observations sont regroupées, pour éviter qu'un modèle flexible ne « reconnaisse » les grappes ; importance des variables par permutation (Breiman, 2001) | écart d'AUC ou de R² < 0,03 |
+| Forme du modèle | Tests du rapport de vraisemblance de la non-linéarité de chaque variable quantitative (spline cubique restreinte à quatre noeuds ; Harrell, 2015) et des interactions entre les quatre variables les plus importantes, avec correction de Holm | aucun effet omis significatif |
+| Contextes | Nombre d'unités de niveau 2 (Maas et Hox, 2005) | au moins 30 |
+
+Le modèle d'apprentissage automatique sert de témoin et n'est jamais interprété : le document reste fondé sur un modèle explicatif lisible, conformément aux usages des sciences sociales.
+
+### 5.2 Vérification des hypothèses
+
+L'auteur peut saisir jusqu'à six hypothèses, en indiquant pour chacune la variable concernée et le sens attendu (association positive, négative ou simple association), ou laisser l'application les déduire de la phrase. Chaque hypothèse est confrontée au modèle final (multi-niveaux s'il existe, sinon multivarié) et, à défaut, au test bivarié. Le verdict est l'un des suivants : **confirmée** (effet significatif dans le sens attendu), **partiellement confirmée** (sens attendu pour une partie des modalités seulement, ou association bivariée qui ne résiste pas à l'ajustement), **non confirmée** (aucune association significative), **infirmée** (effet significatif de sens contraire) ou **non vérifiable** (variable absente des analyses). Un tableau récapitulatif et un paragraphe argumenté par hypothèse sont insérés avant la discussion.
+
+### 5.3 Lecture pour les non-spécialistes
+
+Chaque document comporte une annexe « Lecture des résultats en langage simple » (ce qui a été fait, ce qui en ressort, comment lire un rapport de cotes, quelle confiance accorder aux résultats) et un lexique limité aux notions effectivement employées. La page du projet affiche l'encadré « Ce qu'il faut retenir » et les contrôles de fiabilité expliqués simplement.
 
 ## 6. Analyse multi-niveaux
 
@@ -187,6 +213,7 @@ La présentation est construite à partir des résultats calculés, sans aucune 
 - Pas d'inférence causale sur des données d'observation (pas de variables instrumentales ni d'appariement dans cette version).
 - Pas de plan de sondage complexe complet (stratification et pondération dans les estimations de variance) : la pondération est appliquée aux descriptifs, et les erreurs types sont robustes à la grappe si une grappe est déclarée. Un avertissement le rappelle dans la section Méthodes.
 - Pas de pente aléatoire en logistique multi-niveaux (ordonnée aléatoire uniquement) dans cette version.
+- Pas de modification automatique du modèle à partir des effets omis détectés : l'application les signale et suggère comment en tenir compte, l'auteur décide.
 
 ---
 

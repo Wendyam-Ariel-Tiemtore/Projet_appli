@@ -30,11 +30,26 @@ L'administrateur peut interdire ces deux échanges dans la configuration (`ANALY
 | Mot de passe | Empreinte Argon2id (irréversible) | Jusqu'à la suppression du compte |
 | Clé d'API Claude personnelle | Chiffrée | Jusqu'à son retrait |
 | Fichier de données, résultats | Chiffrés, clé par projet | Durée de conservation configurée |
-| Journal d'audit | Actions (connexion, dépôt, analyse, téléchargement, suppression), sans contenu de données | Jusqu'à la suppression de la base |
+| Journal d'audit | Actions (connexion, dépôt, analyse, téléchargement, suppression), sans contenu de données ni identifiant saisi lors d'un échec de connexion | Un an |
+
+## Cookies
+
+L'application n'utilise que deux cookies strictement nécessaires, qui ne requièrent pas de consentement : le cookie de session (`aa_session`, durée maximale de huit heures) et le jeton anti-falsification des formulaires (`aa_pre`, une heure). Sur une installation en HTTPS, leur nom commence par `__Host-`, ce qui interdit à tout autre site de les lire ou de les remplacer. Aucun cookie de mesure d'audience, de publicité ou de réseau social n'est déposé.
+
+## Cadre légal
+
+| Question | Réponse |
+|---|---|
+| Responsable du traitement | Installation locale ou institutionnelle : l'utilisateur ou l'institution qui l'administre. Service en ligne : l'éditeur (voir les [mentions légales](/mentions-legales)) pour les données de compte ; l'utilisateur reste responsable des données d'enquête qu'il dépose, l'éditeur agissant alors comme sous-traitant. |
+| Finalités | Gestion des comptes, réalisation des analyses demandées, sécurité du service (journal d'audit), facturation pour les offres payantes. |
+| Bases légales | Exécution du contrat (comptes et analyses), intérêt légitime (sécurité), obligation légale (facturation), consentement (rédaction par un modèle de langage externe). |
+| Textes applicables | Règlement (UE) 2016/679 (RGPD) et loi « Informatique et libertés » en France ; loi n° 001-2021/AN du 30 mars 2021 portant protection des personnes à l'égard du traitement des données à caractère personnel au Burkina Faso ; loi du pays de l'utilisateur le cas échéant. |
+| Transferts hors de votre pays | Aucun, sauf si vous activez la rédaction par Claude (résultats agrégés transmis à Anthropic, aux États-Unis) ou la recherche bibliographique (mots-clés transmis à OpenAlex). |
+| Autorité de contrôle | En France, la CNIL ; au Burkina Faso, la Commission de l'informatique et des libertés (CIL). |
 
 ## Vos droits
 
-Vous pouvez à tout moment supprimer un projet ou votre compte (Paramètres). Ces suppressions sont immédiates et définitives. Pour toute autre demande, adressez-vous à l'administrateur de votre installation, qui est le responsable du traitement au sens du règlement général sur la protection des données (RGPD) ou de la législation applicable dans votre pays.
+Vous disposez d'un droit d'accès, de rectification, d'effacement, de limitation, d'opposition et de portabilité sur vos données personnelles. Vous pouvez à tout moment supprimer un projet ou votre compte (Paramètres) : ces suppressions sont immédiates et définitives. Pour toute autre demande, adressez-vous au responsable du traitement indiqué ci-dessus ; une réponse vous est apportée dans un délai d'un mois. Vous pouvez aussi introduire une réclamation auprès de l'autorité de contrôle compétente.
 
 ## Responsabilités du chercheur
 

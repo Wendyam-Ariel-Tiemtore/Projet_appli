@@ -24,6 +24,7 @@ COPY --from=construction /install /usr/local
 WORKDIR /app
 COPY --chown=root:root analyste ./analyste
 COPY --chown=root:root docs ./docs
+COPY --chown=root:root LICENSE THIRD_PARTY_NOTICES.md ./
 USER 10001
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

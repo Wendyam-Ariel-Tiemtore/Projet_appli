@@ -33,6 +33,11 @@ class ProjectStore:
         self.root.chmod(0o700)
         self.pool = ThreadPoolExecutor(max_workers=max(1, settings.worker_threads), thread_name_prefix="analyse")
         self.lock = threading.Lock()
+        # Analyses interrompues par un arrêt du serveur : elles ne doivent pas bloquer leur auteur indéfiniment
+        with self.db.session() as s:
+            for p in s.scalars(select(Project).where(Project.status == "en_cours")).all():
+                p.status, p.message = "erreur", "Analyse interrompue par un redémarrage du serveur. Relancez-la."
+            s.commit()
 
     # --- Clés et chiffrement --------------------------------------------
     def _key(self, p: Project) -> bytes:
@@ -121,6 +126,13 @@ class ProjectStore:
         for d in self.root.iterdir():
             if d.is_dir() and d.name not in known:
                 crypto.shred_dir(d)
+        # Journal d'audit conservé un an
+        from sqlalchemy import delete
+
+        from .db import Audit
+        with self.db.session() as s:
+            s.execute(delete(Audit).where(Audit.ts < utcnow() - timedelta(days=365)))
+            s.commit()
         return len(old)
 
     # --- Résultats -------------------------------------------------------
