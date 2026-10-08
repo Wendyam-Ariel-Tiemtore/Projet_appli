@@ -191,3 +191,21 @@ progress { width: 100%; height: 0.9rem; accent-color: var(--sarcelle); }
 .theme-terre span:nth-child(1) { background: #3B2320; } .theme-terre span:nth-child(2) { background: #9C4434; } .theme-terre span:nth-child(3) { background: #3E7C74; }
 .theme-nuit span:nth-child(1) { background: #1B2250; } .theme-nuit span:nth-child(2) { background: #26357A; } .theme-nuit span:nth-child(3) { background: #D9961A; }
 .libelle { font-weight: 600; margin: 1.1rem 0 0.2rem; }
+.hypothese { background: var(--surface); border: 1px solid var(--filet); padding: 0.8rem 1rem; border-radius: var(--rayon); margin: 0.6rem 0; }
+.hypothese label { margin-top: 0.6rem; }
+
+/* Lecture en langage simple */
+.retenir { background: var(--surface); border: 1px solid var(--filet); border-left: 4px solid var(--sarcelle);
+  padding: 1rem 1.25rem; margin: 0 0 1.5rem; }
+.retenir ul { padding-left: 1.2rem; }
+.retenir li { margin: 0.3rem 0; max-width: 72ch; }
+.retenir details { margin: 0.5rem 0 0.75rem; }
+.retenir summary { cursor: pointer; color: var(--indigo); }
+.controles { list-style: none; padding-left: 0 !important; }
+.etat { display: inline-block; font-size: 0.78rem; font-weight: 600; padding: 0.05rem 0.45rem; border-radius: 999px;
+  border: 1px solid currentColor; margin-right: 0.3rem; }
+.etat--ok { color: var(--sarcelle); }
+.etat--vigilance { color: #8a6100; }
+.etat--ko { color: var(--alerte); }
+.lexique dt { font-weight: 700; margin-top: 1rem; font-family: var(--serif); }
+.lexique dd { margin: 0.2rem 0 0; color: var(--encre); max-width: 70ch; }

@@ -40,9 +40,10 @@ def model_kind(outcome_kind: str) -> str:
 class Fit:
     """Résultat homogène : estimations sur l'échelle de lecture (OR, IRR, β)."""
 
-    def __init__(self, kind: str, res, X: pd.DataFrame, y, exp_scale: bool, cluster_used: bool):
+    def __init__(self, kind: str, res, X: pd.DataFrame, y, exp_scale: bool, cluster_used: bool, methode: str = ""):
         self.kind, self.res, self.X, self.y = kind, res, X, y
         self.exp_scale, self.cluster_used = exp_scale, cluster_used
+        self.methode = methode  # « firth » si la séparation a imposé la vraisemblance pénalisée
 
     def table(self) -> pd.DataFrame:
         params, ci, p = self.res.params, self.res.conf_int(), self.res.pvalues
@@ -70,7 +71,18 @@ def fit_simple(kind: str, y, X: pd.DataFrame, cluster: pd.Series | None = None) 
         res = sm.OLS(y, X1).fit(**_cov_kwargs(cluster, "HC3"))
         return Fit(kind, res, X, y, False, cluster is not None)
     if kind == "logistique":
-        res = sm.GLM(y, X1, family=sm.families.Binomial()).fit(**_cov_kwargs(cluster, "nonrobust"))
+        import warnings as _w
+
+        from .fiabilite import firth_logit, separation
+        try:
+            with _w.catch_warnings():
+                _w.simplefilter("ignore")
+                res = sm.GLM(y, X1, family=sm.families.Binomial()).fit(**_cov_kwargs(cluster, "nonrobust"))
+            sep = separation(res, np.asarray(y, dtype=float))
+        except Exception:  # noqa: BLE001 - séparation complète : l'estimation classique diverge
+            res, sep = None, True
+        if sep:
+            return Fit(kind, firth_logit(np.asarray(y, dtype=float), X1), X, y, True, False, methode="firth")
         return Fit(kind, res, X, y, True, cluster is not None)
     if kind in ("poisson", "binomiale_negative"):
         if kind == "poisson":
@@ -235,6 +247,13 @@ def explain(ds: Dataset, outcome: str, explanatory: list[str], outdir: Path,
 
     # Texte
     sec.paragraphs.append(_intro_sentence(kind, dsg, R))
+    if getattr(full, "methode", "") == "firth":
+        notes.append("Certaines modalités prédisant presque parfaitement l'événement (séparation des données), "
+                     "l'estimation classique ne fournit pas de coefficients finis. Le modèle a donc été estimé par la "
+                     "régression logistique pénalisée de Firth (1993), recommandée dans ce cas (Heinze et Schemper, "
+                     "2002) ; les intervalles de confiance sont de type Wald.")
+        sec.refs |= {"firth1993", "heinze2002"}
+        sec.facts["modele.firth"] = 1
     sec.paragraphs.extend(notes)
     sec.paragraphs.extend(diag_text)
     effets, cles = _effect_sentences(dsg, full, kind, R)

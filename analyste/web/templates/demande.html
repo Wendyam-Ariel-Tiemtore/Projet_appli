@@ -42,8 +42,31 @@
     <input id="problematique" name="problematique" type="text" maxlength="1500" value="{{ spec.problematique }}">
     <label for="objectives">Objectifs <span class="aide">Un par ligne ; le premier est l'objectif général.</span></label>
     <textarea id="objectives" name="objectives">{{ spec.objectives | join("\n") }}</textarea>
-    <label for="hypotheses">Hypothèses <span class="aide">Une par ligne, formulées en termes d'association.</span></label>
-    <textarea id="hypotheses" name="hypotheses">{{ spec.hypotheses | join("\n") }}</textarea>
+    <p class="libelle">Hypothèses (facultatif)</p>
+    <p class="aide">Écrivez chaque hypothèse avec vos mots, par exemple « Le niveau d'instruction de la femme est positivement associé à l'utilisation de la contraception ». L'application la vérifie automatiquement et dit si elle est confirmée, partiellement confirmée, non confirmée ou infirmée. Indiquez la variable concernée et le sens attendu ; s'ils sont laissés vides, ils sont déduits de votre phrase.</p>
+    {% for h in hypotheses %}
+    <div class="hypothese">
+      <label class="sr-only" for="hyp_texte_{{ loop.index0 }}">Hypothèse {{ loop.index }}</label>
+      <input id="hyp_texte_{{ loop.index0 }}" name="hyp_texte_{{ loop.index0 }}" type="text" maxlength="400" value="{{ h.texte }}" placeholder="Hypothèse {{ loop.index }}">
+      <div class="grille-2">
+        <div>
+          <label for="hyp_var_{{ loop.index0 }}">Variable concernée</label>
+          <select id="hyp_var_{{ loop.index0 }}" name="hyp_var_{{ loop.index0 }}">
+            <option value="">Déduire de la phrase</option>
+            {% for v, lab in variables_expl %}<option value="{{ v }}" {% if h.variable == v %}selected{% endif %}>{{ lab }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="hyp_sens_{{ loop.index0 }}">Sens attendu</label>
+          <select id="hyp_sens_{{ loop.index0 }}" name="hyp_sens_{{ loop.index0 }}">
+            <option value="positif" {% if h.sens == "positif" %}selected{% endif %}>Positif : plus de… va avec plus de…</option>
+            <option value="negatif" {% if h.sens == "negatif" %}selected{% endif %}>Négatif : plus de… va avec moins de…</option>
+            <option value="association" {% if h.sens == "association" %}selected{% endif %}>Une association, sans sens précis</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
     <label for="data_description">Source des données <span class="aide">Enquête, population, période, mode de collecte, plan d'échantillonnage.</span></label>
     <textarea id="data_description" name="data_description" maxlength="4000">{{ spec.data_description }}</textarea>
   </fieldset>

@@ -71,7 +71,9 @@ def test_parcours_complet_et_isolation(app, demo_csv):
                                                  "pres_active": "on", "pres_genre": "communication",
                                                  "pres_theme": "nuit", "pres_contenus": ["bivarie", "multivarie"],
                                                  "analyses_presentes": "1", "analyses": ["bivarie", "multivarie"],
-                                                 "alpha": "0.05", "correction": "holm"},
+                                                 "alpha": "0.05", "correction": "holm",
+                                                 "hyp_texte_0": "Le niveau d'instruction favorise l'utilisation",
+                                                 "hyp_var_0": "", "hyp_sens_0": ""},
                follow_redirects=False)
     assert r.status_code == 303
     for _ in range(120):
@@ -81,6 +83,8 @@ def test_parcours_complet_et_isolation(app, demo_csv):
         time.sleep(1)
     assert etat["statut"] == "termine", etat
     r = c.get(f"/projets/{pid}")
+    assert "Ce qu&#39;il faut retenir" in r.text or "Ce qu'il faut retenir" in r.text
+    assert c.get("/lexique").status_code == 200 and "Rapport de cotes" in c.get("/lexique").text
     files = re.findall(rf"/projets/{pid}/fichiers/([a-z]+\.enc)", r.text)
     assert set(files) == {"docx.enc", "pptx.enc", "xlsx.enc", "zip.enc", "params.enc"}
     pp = c.get(f"/projets/{pid}/fichiers/pptx.enc")

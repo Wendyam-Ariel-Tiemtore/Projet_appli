@@ -40,6 +40,7 @@ class RequestSpec:
     problematique: str = ""
     objectives: list[str] = field(default_factory=list)
     hypotheses: list[str] = field(default_factory=list)
+    hypotheses_vars: list[dict] = field(default_factory=list)  # [{"variable": ..., "sens": positif|negatif|association}]
     keywords: list[str] = field(default_factory=list)
     english_abstract: bool = True
     style_sample: str = ""  # extrait rédigé par l'auteur, transmis au seul modèle de langage choisi
@@ -216,7 +217,7 @@ def compose(spec: RequestSpec, sections: dict[str, Section], data_info: dict, va
     methods.append(Item("table", table=variables_table))
     methods.append(Item("heading", "Méthodes d'analyse statistique", 2))
     for key in ("qualite", "descriptif", "bivarie", "multivarie", "multiniveau", "acp", "acm", "cah", "survie",
-                "litterature"):
+                "fiabilite", "hypotheses", "litterature"):
         s = sections.get(key)
         if s:
             for n in s.method_notes:
@@ -238,7 +239,8 @@ def compose(spec: RequestSpec, sections: dict[str, Section], data_info: dict, va
     order = [("qualite", "Qualité des données"), ("descriptif", "Caractéristiques de l'échantillon"),
              ("bivarie", "Facteurs associés : analyse bivariée"), ("multivarie", "Analyse explicative multivariée"),
              ("multiniveau", "Analyse multi-niveaux"), ("acp", "Analyse en composantes principales"),
-             ("acm", "Analyse des correspondances multiples"), ("cah", "Typologie"), ("survie", "Analyse de survie")]
+             ("acm", "Analyse des correspondances multiples"), ("cah", "Typologie"), ("survie", "Analyse de survie"),
+             ("fiabilite", "Fiabilité des résultats")]
     chapters_res: dict[str, list[Item]] = {}
     for key, title in order:
         s = sections.get(key)
@@ -270,6 +272,9 @@ def compose(spec: RequestSpec, sections: dict[str, Section], data_info: dict, va
     lit_items = _section_items(sections["litterature"], "Revue de la littérature", dt) if "litterature" in sections \
         else [Item("heading", "Revue de la littérature", 1), Item("todo", TODO.format("revue de la littérature"))]
 
+    hyp_items = _section_items(sections["hypotheses"], "Vérification des hypothèses", dt) \
+        if "hypotheses" in sections else []
+
     # --- Assemblage selon le type de document ---
     def paras(ps):
         return [Item("todo", p) if p.startswith("[À compléter") else Item("para", p) for p in ps]
@@ -278,7 +283,7 @@ def compose(spec: RequestSpec, sections: dict[str, Section], data_info: dict, va
         items += [Item("heading", "Introduction", 1), *paras(intro)]
         items += _demote(lit_items, 1)
         items += [Item("heading", "Données et méthodes", 1), *methods]
-        items += [Item("heading", "Résultats", 1), *_demote(results, 1)]
+        items += [Item("heading", "Résultats", 1), *_demote(results, 1), *_demote(hyp_items, 1)]
         items += [Item("heading", "Discussion", 1), *paras(discussion)]
         items += [Item("heading", "Conclusion", 1), *paras(conclusion)]
     elif dt == "memoire":
@@ -292,12 +297,14 @@ def compose(spec: RequestSpec, sections: dict[str, Section], data_info: dict, va
                       [it for k in ("qualite", "descriptif") for it in _demote(chapters_res.get(k, []), 1)])]
         if "bivarie" in chapters_res:
             chapitres.append(("Facteurs associés", _demote(chapters_res["bivarie"], 1)))
-        expl = [k for k in ("multivarie", "multiniveau", "acp", "acm", "cah", "survie") if k in chapters_res]
+        expl = [k for k in ("multivarie", "multiniveau", "acp", "acm", "cah", "survie", "fiabilite")
+                if k in chapters_res]
         if expl:
             chapitres.append(("Analyse explicative et typologique",
                               [it for k in expl for it in _demote(chapters_res[k], 1)]))
         for i, (titre_chap, contenu) in enumerate(chapitres, start=1):
             items += [Item("heading", f"Chapitre {i} : {titre_chap}", 1), *contenu]
+        items += hyp_items
         items += [Item("heading", "Discussion", 1), *paras(discussion)]
         items += [Item("heading", "Conclusion générale et recommandations", 1), *paras(conclusion)]
     elif dt == "rapport_stage":
@@ -308,7 +315,7 @@ def compose(spec: RequestSpec, sections: dict[str, Section], data_info: dict, va
         items += [Item("heading", "Deuxième partie : Cadre théorique", 1), *_demote(lit_items, 1)]
         items += [Item("heading", "Troisième partie : Données et méthodes", 1), *methods]
         items += [Item("heading", "Quatrième partie : Résultats et discussion", 1), *_demote(results, 1),
-                  Item("heading", "Discussion", 2), *paras(discussion)]
+                  *_demote(hyp_items, 1), Item("heading", "Discussion", 2), *paras(discussion)]
         items += [Item("heading", "Apport du stage", 1),
                   Item("todo", TODO.format("compétences acquises, difficultés rencontrées, apports personnels"))]
         items += [Item("heading", "Conclusion", 1), *paras(conclusion)]
@@ -327,7 +334,7 @@ def compose(spec: RequestSpec, sections: dict[str, Section], data_info: dict, va
         items += [Item("heading", "Contexte et objectifs", 1), *paras(intro)]
         items += _demote(lit_items, 1)
         items += [Item("heading", "Méthodologie", 1), *methods]
-        items += [Item("heading", "Résultats", 1), *_demote(results, 1)]
+        items += [Item("heading", "Résultats", 1), *_demote(results, 1), *_demote(hyp_items, 1)]
         items += [Item("heading", "Discussion", 1), *paras(discussion)]
         items += [Item("heading", "Conclusions et recommandations", 1), *paras(conclusion)]
 
@@ -337,13 +344,27 @@ def compose(spec: RequestSpec, sections: dict[str, Section], data_info: dict, va
         keys |= s.refs
     keys |= {"seabold2010", "virtanen2020"}
     refs = sorted(set(bibliography(keys)) | set(lit_refs), key=lambda x: _sort_key(x))
-    annex = [Item("heading", "Annexe 1 : Paramètres de reproductibilité", 1),
+    from .lexique import lecture_simple, lexique_utilise
+    fia = sections.get("fiabilite")
+    clair = lecture_simple(key_results, fia.extra.get("globale") if fia else None, int(data_info.get("n", 0)),
+                           data_info.get("unite") or "observations")
+    corpus = " ".join([i.text for i in items if i.text] + [x for i in items for x in (i.items or [])]
+                      + [f"{i.table.title} {i.table.note}" for i in items if i.table is not None])
+    notions = lexique_utilise(corpus)
+    annex = [Item("heading", "Annexe 1 : Lecture des résultats en langage simple", 1),
+             Item("para", "Cette annexe s'adresse aux lecteurs qui ne sont pas familiers des méthodes statistiques."),
+             *[Item("para", t) for t in clair]]
+    if notions:
+        annex += [Item("heading", "Annexe 2 : Lexique des notions employées", 1),
+                  Item("bullets", items=[f"{t} : {d}" for t, d in notions])]
+    k0 = sum(1 for i in annex if i.kind == "heading")
+    annex += [Item("heading", f"Annexe {k0 + 1} : Paramètres de reproductibilité", 1),
              Item("para", "Les paramètres ci-dessous permettent de reproduire à l'identique l'ensemble des analyses."),
              Item("para", json.dumps(data_info.get("parameters", {}), ensure_ascii=False, indent=1)),
-             Item("heading", "Annexe 2 : Journal de la rédaction assistée", 1),
+             Item("heading", f"Annexe {k0 + 2} : Journal de la rédaction assistée", 1),
              Item("bullets", items=log or ["Aucun modèle de langage n'a été utilisé : tous les textes sont produits "
                                            "par les règles de l'application."]),
-             Item("heading", "Annexe 3 : Déclaration d'utilisation d'outils", 1),
+             Item("heading", f"Annexe {k0 + 3} : Déclaration d'utilisation d'outils", 1),
              Item("para", "Les analyses statistiques, les tableaux, les figures et une partie des textes de ce "
                           "document ont été produits à l'aide de l'application « Analyste académique ». Les passages "
                           "marqués « À compléter par l'auteur » relèvent de la seule responsabilité de l'auteur. "
@@ -431,7 +452,8 @@ def _section_items(s: Section, title: str, dt: str) -> list[Item]:
 def _key_results(sections: dict[str, Section]) -> list[str]:
     """Phrases de synthèse fournies par chaque module (résumé, discussion, conclusion)."""
     out = []
-    for key in ("descriptif", "multiniveau", "multivarie", "bivarie", "survie", "acp", "acm", "cah"):
+    for key in ("hypotheses", "descriptif", "multiniveau", "multivarie", "bivarie", "survie", "acp", "acm", "cah",
+                "fiabilite"):
         s = sections.get(key)
         if s:
             out.extend(s.key_points)

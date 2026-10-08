@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block titre %}Lexique{% endblock %}
+{% block contenu %}
+<article class="doc">
+  <h1>Lexique</h1>
+  <p class="chapeau">Les notions statistiques employées dans les documents produits, expliquées sans jargon.</p>
+  <dl class="lexique">
+    {% for terme, definition in termes %}
+    <dt id="terme-{{ loop.index }}">{{ terme }}</dt>
+    <dd>{{ definition }}</dd>
+    {% endfor %}
+  </dl>
+</article>
+{% endblock %}

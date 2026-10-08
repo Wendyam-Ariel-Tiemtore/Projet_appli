@@ -22,7 +22,7 @@ from ..config import Settings, ensure_secret_file, get_settings
 from ..db import Database, Project, SessionRow, User
 from ..jobs import ProjectStore
 from ..literature.sources import build_query
-from ..pipeline import AnalysisConfig
+from ..pipeline import AnalysisConfig, apply_overrides
 from ..security import crypto
 from ..security.auth import COOKIE, USERNAME_RE, Auth, csrf_ok, password_problems
 from ..security.web import OriginCheck, RateLimiter, SecurityHeaders, UploadError, validate_upload
@@ -44,6 +44,8 @@ ANALYSES_LIBELLES = {
     "multivarie": ("Analyse multivariée", "Modèle choisi selon la variable dépendante : linéaire, logistique, "
                                           "multinomial, ordonné ou de comptage."),
     "multiniveau": ("Analyse multi-niveaux", "Si un identifiant de contexte a été déclaré (grappe, village, école)."),
+    "fiabilite": ("Contrôle de fiabilité", "Validation par rééchantillonnage, comparaison avec un modèle "
+                                           "d'apprentissage automatique et bilan de fiabilité lisible par tous."),
     "factorielles": ("Analyses factorielles et typologie", "ACP, ACM et classification lorsque au moins trois "
                                                             "variables du même type sont disponibles."),
     "survie": ("Analyse de survie", "Si une durée et un événement ont été déclarés."),
@@ -415,8 +417,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         cfg = AnalysisConfig.from_dict(store.dec(p, p.config_enc, {}))
         has_key = bool(c.user.api_key_enc) or bool(settings.anthropic_api_key)
         pres = presentation_opts.PresentationSpec.from_dict(spec.get("presentation"))
+        # Hypothèses : texte, variable et sens attendu (proposés automatiquement, modifiables)
+        from ..stats.hypotheses import deviner
+        ds = store.load_dataset(p)
+        apply_overrides(ds, cfg)
+        expl = [v for v in cfg.explanatory if v in ds.variables and v != cfg.outcome]
+        variables_expl = [(v, ds.variables[v].label) for v in expl]
+        textes = list(spec.get("hypotheses", []))
+        liens = list(spec.get("hypotheses_vars", []))
+        lignes_h = []
+        for i in range(max(4, len(textes) + 1)):
+            txt = textes[i] if i < len(textes) else ""
+            lien = (liens[i] if i < len(liens) else None) or (deviner(txt, ds, expl, cfg.outcome) if txt else {})
+            lignes_h.append({"texte": txt, "variable": lien.get("variable") or "", "sens": lien.get("sens") or
+                             "association"})
         return render(request, "demande.html", c, projet={"id": pid, "nom": store.name(p), "statut": p.status},
-                      spec=spec, cfg=cfg, pres=pres, has_key=has_key, etape=3)
+                      spec=spec, cfg=cfg, pres=pres, has_key=has_key, etape=3, hypotheses=lignes_h[:6],
+                      variables_expl=variables_expl)
 
     @app.post("/projets/{pid}/demande")
     async def demande_post(request: Request, pid: str):
@@ -429,6 +446,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         def lines(key):
             return [x.strip()[:400] for x in str(form.get(key, "")).splitlines() if x.strip()][:12]
 
+        hyp_textes, hyp_liens = [], []
+        for i in range(6):
+            txt = " ".join(str(form.get(f"hyp_texte_{i}", "")).split())[:400]
+            if not txt:
+                continue
+            sens = str(form.get(f"hyp_sens_{i}", "association"))
+            hyp_textes.append(txt)
+            hyp_liens.append({"variable": str(form.get(f"hyp_var_{i}", ""))[:120] or None,
+                              "sens": sens if sens in ("positif", "negatif", "association") else "association"})
+        if not hyp_textes and form.get("hypotheses"):  # ancien formulaire : une hypothèse par ligne
+            hyp_textes = lines("hypotheses")
+
         dt = str(form.get("doc_type", "rapport_etude"))
         spec = RequestSpec(
             doc_type=dt if dt in DOC_TYPES else "rapport_etude",
@@ -438,7 +467,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             context=str(form.get("context", "")).strip()[:6000],
             data_description=str(form.get("data_description", "")).strip()[:4000],
             problematique=str(form.get("problematique", "")).strip()[:1500],
-            objectives=lines("objectives"), hypotheses=lines("hypotheses"),
+            objectives=lines("objectives"), hypotheses=hyp_textes, hypotheses_vars=hyp_liens,
             keywords=[k.strip()[:80] for k in str(form.get("keywords", "")).split(",") if k.strip()][:10],
             english_abstract=form.get("english_abstract") == "on",
             style_sample=str(form.get("style_sample", "")).strip()[:2500],
@@ -500,12 +529,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/projets/{pid}", response_class=HTMLResponse)
     def projet(request: Request, pid: str):
         c, p = project_or_404(request, pid)
-        res = store.results(p) if p.status == "termine" else {"fichiers": [], "journal": []}
+        res = store.results(p) if p.status == "termine" else {"fichiers": [], "journal": [], "retenir": {}}
         cfg = AnalysisConfig.from_dict(store.dec(p, p.config_enc, {}))
         return render(request, "projet.html", c, projet={"id": pid, "nom": store.name(p), "statut": p.status,
                                                           "progression": p.progress, "message": p.message,
                                                           "fichier": store.filename(p), "maj": p.updated_at},
-                      fichiers=res["fichiers"], journal=res["journal"], cfg=cfg, etape=4,
+                      fichiers=res["fichiers"], journal=res["journal"], retenir=res.get("retenir") or {},
+                      cfg=cfg, etape=4,
                       requete=build_query(cfg.keywords) if cfg.literature else "")
 
     @app.get("/projets/{pid}/etat")
@@ -652,6 +682,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     pages = {"aide": ("FAQ.md", "Aide et questions fréquentes"),
              "confidentialite": ("CONFIDENTIALITE.md", "Confidentialité"),
              "securite": ("SECURITE.md", "Sécurité"), "methodologie": ("METHODOLOGIE.md", "Guide méthodologique")}
+
+    @app.get("/lexique", response_class=HTMLResponse)
+    def lexique(request: Request):
+        from ..writing.lexique import LEXIQUE, _cle
+        termes = sorted(((t, d) for t, (_, d) in LEXIQUE.items()), key=lambda x: _cle(x[0]))
+        return render(request, "lexique.html", maybe_ctx(request), termes=termes)
 
     @app.get("/{page}", response_class=HTMLResponse)
     def doc_page(request: Request, page: str):

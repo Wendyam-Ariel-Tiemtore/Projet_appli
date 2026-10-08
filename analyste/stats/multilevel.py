@@ -563,6 +563,8 @@ def multilevel(ds: Dataset, outcome: str, explanatory: list[str], cluster: str, 
            "moyenne générale, de sorte que la constante et la variance contextuelle se rapportent à un individu de "
            "valeurs moyennes." if centred else ""))
     sec.extra["fits"] = fits
+    sec.extra["design"] = dsg
+    sec.extra["final"] = (final_name, final)
     return sec
 
 

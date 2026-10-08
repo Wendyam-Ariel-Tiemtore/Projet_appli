@@ -173,7 +173,8 @@ class ProjectStore:
                 files.append({"type": kind, "nom": path.name, "libelle": labels[kind], "stockage": stor,
                               "taille": path.stat().st_size})
             self.update(pid, status="termine", progress=100, message="Analyse terminée",
-                        results_enc=self.enc(p, {"fichiers": files, "journal": out.get("log", [])}))
+                        results_enc=self.enc(p, {"fichiers": files, "journal": out.get("log", []),
+                                                 "retenir": out.get("retenir", {})}))
             self.db.audit("analyse_terminee", user_id=user_id, project_id=pid)
         except Exception as exc:  # noqa: BLE001
             log.error("Échec de l'analyse %s : %s", pid, type(exc).__name__)

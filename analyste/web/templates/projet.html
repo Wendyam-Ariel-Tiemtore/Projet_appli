@@ -17,6 +17,25 @@
 <div class="erreurs" role="alert"><p>{{ projet.message }}</p></div>
 <div class="actions"><a class="bouton" href="/projets/{{ projet.id }}/variables">Vérifier les variables</a></div>
 {% elif projet.statut == "termine" %}
+{% if retenir and (retenir.points or retenir.fiabilite) %}
+<section class="retenir" aria-labelledby="titre-retenir">
+  <h2 id="titre-retenir" class="sans-marge">Ce qu'il faut retenir</h2>
+  {% if retenir.lecture %}<p>{{ retenir.lecture }}</p>{% endif %}
+  {% if retenir.points %}<ul>{% for pt in retenir.points %}<li>{{ pt }}</li>{% endfor %}</ul>{% endif %}
+  {% if retenir.fiabilite %}<p><strong>Fiabilité des résultats : {{ retenir.fiabilite }}.</strong></p>{% endif %}
+  {% if retenir.criteres %}
+  <details>
+    <summary>Voir les contrôles de fiabilité expliqués simplement</summary>
+    <ul class="controles">
+      {% for c in retenir.criteres %}
+      <li><span class="etat etat--{{ 'ok' if c.etat in ('satisfaisant', 'élevé') else ('ko' if c.etat in ('insuffisant', 'faible') else 'vigilance') }}">{{ c.etat }}</span> <strong>{{ c.nom }}</strong> : {{ c.explication }}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  <p class="aide">Les termes techniques sont expliqués dans le <a href="/lexique">lexique</a> et dans les annexes du document Word.</p>
+</section>
+{% endif %}
 <h2>Documents produits</h2>
 <ul class="fichiers">
   {% for f in fichiers %}

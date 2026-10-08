@@ -211,6 +211,42 @@ _REFS = [
               "Wilson, E. B. (1927). Probable inference, the law of succession, and statistical inference. "
               "*Journal of the American Statistical Association*, 22(158), 209-212. "
               "https://doi.org/10.1080/01621459.1927.10502953"),
+    Reference("firth1993", "Firth, 1993",
+              "Firth, D. (1993). Bias reduction of maximum likelihood estimates. *Biometrika*, 80(1), 27-38. "
+              "https://doi.org/10.1093/biomet/80.1.27"),
+    Reference("heinze2002", "Heinze et Schemper, 2002",
+              "Heinze, G., et Schemper, M. (2002). A solution to the problem of separation in logistic regression. "
+              "*Statistics in Medicine*, 21(16), 2409-2419. https://doi.org/10.1002/sim.1047"),
+    Reference("harrell1996", "Harrell, Lee et Mark, 1996",
+              "Harrell, F. E., Lee, K. L., et Mark, D. B. (1996). Multivariable prognostic models: Issues in "
+              "developing models, evaluating assumptions and adequacy, and measuring and reducing errors. "
+              "*Statistics in Medicine*, 15(4), 361-387. "
+              "https://doi.org/10.1002/(SICI)1097-0258(19960229)15:4<361::AID-SIM168>3.0.CO;2-4"),
+    Reference("steyerberg2001", "Steyerberg et al., 2001",
+              "Steyerberg, E. W., Harrell, F. E., Borsboom, G. J. J. M., Eijkemans, M. J. C., Vergouwe, Y., et "
+              "Habbema, J. D. F. (2001). Internal validation of predictive models: Efficiency of some procedures "
+              "for logistic regression analysis. *Journal of Clinical Epidemiology*, 54(8), 774-781. "
+              "https://doi.org/10.1016/S0895-4356(01)00341-9"),
+    Reference("friedman2001", "Friedman, 2001",
+              "Friedman, J. H. (2001). Greedy function approximation: A gradient boosting machine. *The Annals of "
+              "Statistics*, 29(5), 1189-1232. https://doi.org/10.1214/aos/1013203451"),
+    Reference("breiman2001", "Breiman, 2001",
+              "Breiman, L. (2001). Random forests. *Machine Learning*, 45(1), 5-32. "
+              "https://doi.org/10.1023/A:1010933404324"),
+    Reference("pedregosa2011", "Pedregosa et al., 2011",
+              "Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., et al. (2011). "
+              "Scikit-learn: Machine learning in Python. *Journal of Machine Learning Research*, 12, 2825-2830."),
+    Reference("harrell2015", "Harrell, 2015",
+              "Harrell, F. E. (2015). *Regression modeling strategies: With applications to linear models, logistic "
+              "and ordinal regression, and survival analysis* (2e éd.). Springer. "
+              "https://doi.org/10.1007/978-3-319-19425-7"),
+    Reference("peduzzi1996", "Peduzzi et al., 1996",
+              "Peduzzi, P., Concato, J., Kemper, E., Holford, T. R., et Feinstein, A. R. (1996). A simulation "
+              "study of the number of events per variable in logistic regression analysis. *Journal of Clinical "
+              "Epidemiology*, 49(12), 1373-1379. https://doi.org/10.1016/S0895-4356(96)00236-3"),
+    Reference("maas2005", "Maas et Hox, 2005",
+              "Maas, C. J. M., et Hox, J. J. (2005). Sufficient sample sizes for multilevel modeling. "
+              "*Methodology*, 1(3), 86-92. https://doi.org/10.1027/1614-2241.1.3.86"),
 ]
 
 REFERENCES: dict[str, Reference] = {r.key: r for r in _REFS}

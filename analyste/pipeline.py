@@ -20,7 +20,7 @@ from .writing.composer import RequestSpec, compose
 from .writing.style import nettoyer, nombre
 
 Progress = Callable[[int, str], None]
-ANALYSES = ("bivarie", "multivarie", "multiniveau", "factorielles", "survie")
+ANALYSES = ("bivarie", "multivarie", "multiniveau", "fiabilite", "factorielles", "survie")
 
 
 @dataclass
@@ -136,6 +136,17 @@ def _run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, set
             except Exception as exc:  # noqa: BLE001
                 sections["multiniveau"] = _failed("multiniveau", "Analyse multi-niveaux", exc)
 
+    if "multivarie" in sections and "fiabilite" in voulu:
+        say(63, "Validation interne et contrôle de fiabilité")
+        try:
+            from .stats.fiabilite import bilan
+            sec_f = bilan(ds, sections, cfg.outcome, _event_level(ds, cfg), cfg.cluster)
+            if sec_f is not None:
+                sections["fiabilite"] = sec_f
+        except Exception as exc:  # noqa: BLE001 - le bilan ne doit jamais empêcher la production du document
+            import logging
+            logging.getLogger(__name__).warning("Bilan de fiabilité impossible : %s", type(exc).__name__)
+
     if cfg.factorial and "factorielles" in voulu:
         say(66, "Analyses factorielles et typologie")
         quant = [v for v in used if ds.variables[v].kind in ("continue", "comptage") and v != cfg.outcome]
@@ -184,6 +195,21 @@ def _run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, set
         lit_digest = "\n".join(f"- ({w.citation()}) {w.title}. Objet : {w.extracted.get('objet', '')} Résultats : "
                                f"{w.extracted.get('resultats', '')}" for w in sel)
 
+    if spec.hypotheses and cfg.outcome:
+        say(84, "Vérification des hypothèses")
+        from .stats.hypotheses import deviner, verifier
+        hyps = []
+        for i, txt in enumerate(spec.hypotheses):
+            lien = (spec.hypotheses_vars[i] if i < len(spec.hypotheses_vars) else None) or {}
+            if not lien.get("variable"):
+                devine = deviner(txt, ds, expl if cfg.outcome else [], cfg.outcome)
+                lien = {"variable": devine["variable"], "sens": lien.get("sens") or devine["sens"]}
+            hyps.append({"texte": txt, "variable": lien.get("variable") if lien.get("variable") in expl else None,
+                         "sens": lien.get("sens") or "association"})
+        sec_h = verifier(hyps, ds, sections, cfg.outcome, _event_level(ds, cfg))
+        if sec_h is not None:
+            sections["hypotheses"] = sec_h
+
     say(86, "Rédaction du document")
     data_info = _data_info(ds, cfg, sections)
     var_table = _variables_table(ds, cfg)
@@ -221,7 +247,16 @@ def _run(ds: Dataset, cfg: AnalysisConfig, spec: RequestSpec, workdir: Path, set
         for f in sorted(figdir.glob("*.png")):
             z.write(f, f"figures/{f.name}")
     say(100, "Terminé")
-    out = {"docx": docx_path, "xlsx": xlsx_path, "zip": bundle, "params": params, "log": document.log}
+    from .writing.composer import _key_results as _kr
+    from .writing.lexique import lecture_simple, simplifier
+    fia = sections.get("fiabilite")
+    globale = fia.extra.get("globale") if fia else None
+    retenir = {"points": [simplifier(k) for k in _kr(sections)[:5]], "fiabilite": globale,
+               "lecture": lecture_simple([], None, data_info["n"], data_info["unite"])[0],
+               "criteres": [{"nom": c.nom, "etat": c.etat, "explication": c.explication}
+                            for c in (fia.extra.get("criteres", []) if fia else [])]}
+    out = {"docx": docx_path, "xlsx": xlsx_path, "zip": bundle, "params": params, "log": document.log,
+           "retenir": retenir}
     if pptx_path is not None:
         out["pptx"] = pptx_path
     return out  # type: ignore[return-value]
@@ -267,7 +302,8 @@ def _data_info(ds: Dataset, cfg: AnalysisConfig, sections: dict[str, Section]) -
         "logiciels": _software_versions(), "python": platform.python_version(),
         "quadrature_gauss_hermite": 15, "repetitions_horn": 500,
     }
-    return {"n": n, "description": desc, "parameters": params, "weighted": bool(cfg.weight)}
+    return {"n": n, "description": desc, "parameters": params, "weighted": bool(cfg.weight),
+            "unite": (cfg.redaction or {}).get("unite") or "observations"}
 
 
 def _variables_table(ds: Dataset, cfg: AnalysisConfig) -> Table:

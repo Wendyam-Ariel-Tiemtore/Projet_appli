@@ -62,7 +62,8 @@ CONTENUS = {"contexte": "Contexte et problématique", "objectifs": "Objectifs et
             "descriptif": "Caractéristiques de l'échantillon", "bivarie": "Analyse bivariée",
             "multivarie": "Analyse multivariée", "multiniveau": "Analyse multi-niveaux",
             "typologie": "Analyses factorielles et typologie", "survie": "Analyse de survie",
-            "limites": "Limites", "recommandations": "Recommandations"}
+            "hypotheses": "Vérification des hypothèses", "fiabilite": "Fiabilité des résultats", "limites": "Limites",
+            "recommandations": "Recommandations"}
 
 
 @dataclass
@@ -294,6 +295,32 @@ def planifier(pres: PresentationSpec, req, sections: dict[str, Section], data_in
         d = _diapo_survie(sections["survie"], R, detail)
         if d:
             out.append(d)
+
+    # --- Fiabilité ---
+    if "fiabilite" in voulu and "fiabilite" in sections and sections["fiabilite"].extra.get("criteres"):
+        fs = sections["fiabilite"]
+        crit = fs.extra["criteres"]
+        prio = [c for c in crit if c.etat not in ("satisfaisant", "élevé")] + \
+            [c for c in crit if c.etat in ("satisfaisant", "élevé")]
+        out.append(Diapo("texte", titre=f"La fiabilité des résultats est jugée {fs.extra['globale']}",
+                         puces=[f"{c.nom} : {c.valeur} ({c.etat})" for c in prio[:4]],
+                         encadre=("Certains critères sont insuffisants : les résultats doivent être confirmés sur "
+                                  "d'autres données" if fs.extra["globale"].startswith("à interpréter") else
+                                  "Les résultats reposent sur un échantillon suffisant et un modèle stable, validé "
+                                  "par rééchantillonnage" if fs.extra["globale"] == "élevée" else
+                                  "Les résultats sont solides ; les points signalés invitent seulement à nuancer "
+                                  "certaines conclusions"),
+                         meta={"etiquette": "En clair"}, partie="Résultats", priorite=2,
+                         notes=_notes(*fs.paragraphs)))
+
+    # --- Hypothèses ---
+    if "hypotheses" in voulu and "hypotheses" in sections:
+        vds = sections["hypotheses"].extra.get("verdicts", [])
+        if vds:
+            out.append(Diapo("cartes", titre="Vérification des hypothèses", partie="Discussion",
+                             cartes=[(f"H{v.numero} : {v.verdict}", _court(_sans_point(v.texte), 150))
+                                     for v in vds[:4]],
+                             notes=_notes(*sections["hypotheses"].paragraphs[1:5])))
 
     # --- Limites, conclusion, recommandations ---
     if "limites" in voulu and limites and pres.genre in ("soutenance", "seminaire", "atelier", "communication"):
