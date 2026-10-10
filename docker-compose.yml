@@ -54,7 +54,7 @@ services:
         ipv4_address: 172.30.57.10
 
   ollama:
-    image: ollama/ollama:0.19.0
+    image: ollama/ollama:0.40.0
     profiles: ["ia-locale"]
     restart: unless-stopped
     volumes:
